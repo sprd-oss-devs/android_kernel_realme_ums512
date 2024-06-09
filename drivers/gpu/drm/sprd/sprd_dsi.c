@@ -38,8 +38,6 @@ LIST_HEAD(dsi_core_head);
 LIST_HEAD(dsi_glb_head);
 static DEFINE_MUTEX(dsi_lock);
 
-struct sprd_dsi *dsi_v2;
-
 static int sprd_dsi_resume(struct sprd_dsi *dsi)
 {
 	if (dsi->glb && dsi->glb->power)
@@ -131,6 +129,9 @@ static void sprd_dsi_encoder_enable(struct drm_encoder *encoder)
 
 	sprd_dsi_set_work_mode(dsi, dsi->ctx.work_mode);
 	sprd_dsi_state_reset(dsi);
+	if ((dsi->ctx.work_mode == DSI_MODE_VIDEO)
+			&& dsi->ctx.video_lp_cmd_en)
+		sprd_dsi_lp_cmd_enable(dsi, true);
 
 	sprd_sharkl3_workaround(dsi);
 
@@ -173,12 +174,14 @@ static void sprd_dsi_encoder_disable(struct drm_encoder *encoder)
 		drm_panel_disable(dsi->panel);
 		if (dsi->phy->ctx.ulps_enable)
 			sprd_dphy_ulps_enter(dsi->phy);
-		drm_panel_unprepare(dsi->panel);
 	}
 
 	sprd_dphy_suspend(dsi->phy);
 	sprd_dsi_suspend(dsi);
 
+	if (dsi->panel) {
+		drm_panel_unprepare(dsi->panel);
+	}
 	pm_runtime_put(dsi->dev.parent);
 
 	dsi->ctx.is_inited = false;
@@ -347,6 +350,33 @@ static int sprd_dsi_host_attach(struct mipi_dsi_host *host,
 		ctx->esc_clk = val > 20000 ? 20000 : val;
 	else
 		ctx->esc_clk = 20000;
+
+	if (!of_property_read_u32(lcd_node, "sprd,dpi-clk-div", &val))
+		dsi->phy->ctx.dpi_clk_div = val;
+
+	DRM_INFO("dphy->ctx.dpi_clk_div =%d\n", dsi->phy->ctx.dpi_clk_div);
+	ret = of_property_read_u32(lcd_node, "sprd,special-timing-mode", &val);
+	if (!ret)
+		dsi->phy->ctx.special_timing_mode = val;
+	else
+		dsi->phy->ctx.special_timing_mode = 0;
+	DRM_INFO("dphy->ctx.special_timing_mode=%d\n", dsi->phy->ctx.special_timing_mode);
+
+
+	ret = of_property_read_u32(lcd_node, "sprd,video-lp-cmd-enable", &val);
+	if (!ret)
+		ctx->video_lp_cmd_en = val;
+	else
+		ctx->video_lp_cmd_en = 0;
+	DRM_INFO("dphy->ctx.video_lp_cmd_en=%d\n", ctx->video_lp_cmd_en);
+
+	ret = of_property_read_u32(lcd_node, "sprd,hporch-lp-disable", &val);
+	if (!ret)
+		ctx->hporch_lp_disable = val;
+	else
+		ctx->hporch_lp_disable = 0;
+	DRM_INFO("dphy->ctx.hporch_lp_disable=%d\n", ctx->hporch_lp_disable);
+	
 
 	return 0;
 }
@@ -767,7 +797,6 @@ static int sprd_dsi_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	dsi_v2 = dsi;
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_get_noresume(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);

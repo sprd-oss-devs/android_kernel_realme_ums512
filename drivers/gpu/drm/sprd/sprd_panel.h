@@ -30,6 +30,10 @@ enum {
 	CMD_OLED_BRIGHTNESS,
 	CMD_OLED_REG_LOCK,
 	CMD_OLED_REG_UNLOCK,
+	CMD_CODE_CABC_OFF,
+	CMD_CODE_CABC_UI,
+	CMD_CODE_CABC_STILL,
+	CMD_CODE_CABC_MOVING,
 	CMD_CODE_RESERVED0,
 	CMD_CODE_RESERVED1,
 	CMD_CODE_RESERVED2,
@@ -49,6 +53,15 @@ enum {
 enum {
 	ESD_MODE_REG_CHECK,
 	ESD_MODE_TE_CHECK,
+	ESD_MODE_SPECIAL_CHECK,
+};
+
+enum {
+       CABC_MODE_OFF,
+       CABC_MODE_UI,
+       CABC_MODE_STILL,
+       CABC_MODE_MOVING,
+       CABC_MODE_MAX,
 };
 
 struct dsi_cmd_desc {
@@ -95,6 +108,7 @@ struct panel_info {
 	u32 lanes;
 	u32 mode_flags;
 	bool use_dcs;
+	u32 cabc_mode;
 };
 
 struct sprd_panel {
@@ -107,12 +121,13 @@ struct sprd_panel {
 	struct delayed_work esd_work;
 	bool esd_work_pending;
 	bool is_enabled;
+	bool is_shutdown;
 };
 
 struct sprd_oled {
 	struct backlight_device *bdev;
 	struct sprd_panel *panel;
-	struct dsi_cmd_desc *cmds[255];
+	struct dsi_cmd_desc *cmds[256];
 	int cmd_len;
 	int cmds_total;
 	int max_level;
@@ -121,4 +136,5 @@ struct sprd_oled {
 int sprd_panel_parse_lcddtb(struct device_node *lcd_node,
 	struct sprd_panel *panel);
 
+extern void sprd_cabc_set_mode(struct sprd_panel *panel, unsigned int cabc_mode);
 #endif

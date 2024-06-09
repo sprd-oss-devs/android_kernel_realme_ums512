@@ -425,6 +425,44 @@ static ssize_t load_lcddtb_store(struct device *dev,
 }
 static DEVICE_ATTR_WO(load_lcddtb);
 
+
+static ssize_t LCD_CABC_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sprd_panel *panel = dev_get_drvdata(dev);
+	struct panel_info *info = &panel->info;
+	int ret;
+
+	ret = snprintf(buf, PAGE_SIZE, "%u\n", info->cabc_mode);
+
+	return ret;
+}
+
+static ssize_t LCD_CABC_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	struct sprd_panel *panel = dev_get_drvdata(dev);
+	struct panel_info *info = &panel->info;
+	unsigned int mode;
+
+	if (kstrtouint(buf, 10, &mode)) {
+		pr_err("invalid input for setting cabc mode\n");
+		return -EINVAL;
+	}
+
+	pr_info("%s mode: %u\n", mode);
+	if (mode < CABC_MODE_MAX) {
+		sprd_cabc_set_mode(panel, mode);
+		info->cabc_mode = mode;
+	} else {
+		return -EINVAL;
+	}
+
+	return count;
+}
+static DEVICE_ATTR_RW(LCD_CABC);
+
 static struct attribute *panel_attrs[] = {
 	&dev_attr_name.attr,
 	&dev_attr_lane_num.attr,
@@ -441,6 +479,7 @@ static struct attribute *panel_attrs[] = {
 	&dev_attr_suspend.attr,
 	&dev_attr_resume.attr,
 	&dev_attr_load_lcddtb.attr,
+	&dev_attr_LCD_CABC.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(panel);

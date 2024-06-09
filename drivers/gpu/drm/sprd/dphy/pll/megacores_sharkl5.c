@@ -389,15 +389,22 @@ FAIL:
 	return -1;
 }
 
-static int dphy_set_timing_regs(struct regmap *regmap, int type, u8 val[])
+static int dphy_set_timing_regs(struct regmap *regmap, int type, u8 val[], int special_timing_mode)
 {
 	switch (type) {
 	case REQUEST_TIME:
 		regmap_write(regmap, 0x31, val[CLK]);
-		regmap_write(regmap, 0x41, val[DATA]);
-		regmap_write(regmap, 0x51, val[DATA]);
-		regmap_write(regmap, 0x61, val[DATA]);
-		regmap_write(regmap, 0x71, val[DATA]);
+		if (!special_timing_mode){
+			regmap_write(regmap, 0x41, val[DATA]);
+			regmap_write(regmap, 0x51, val[DATA]);
+			regmap_write(regmap, 0x61, val[DATA]);
+			regmap_write(regmap, 0x71, val[DATA]);
+		} else {
+			regmap_write(regmap, 0x41, 0x4);
+			regmap_write(regmap, 0x51, 0x4);
+			regmap_write(regmap, 0x61, 0x4);
+			regmap_write(regmap, 0x71, 0x4);
+		}
 
 		regmap_write(regmap, 0x90, val[CLK]);
 		regmap_write(regmap, 0xa0, val[DATA]);
@@ -407,10 +414,17 @@ static int dphy_set_timing_regs(struct regmap *regmap, int type, u8 val[])
 		break;
 	case PREPARE_TIME:
 		regmap_write(regmap, 0x32, val[CLK]);
-		regmap_write(regmap, 0x42, val[DATA]);
-		regmap_write(regmap, 0x52, val[DATA]);
-		regmap_write(regmap, 0x62, val[DATA]);
-		regmap_write(regmap, 0x72, val[DATA]);
+		if (!special_timing_mode){
+			regmap_write(regmap, 0x42, val[DATA]);
+			regmap_write(regmap, 0x52, val[DATA]);
+			regmap_write(regmap, 0x62, val[DATA]);
+			regmap_write(regmap, 0x72, val[DATA]);
+		} else {
+			regmap_write(regmap, 0x42, 0xd);
+			regmap_write(regmap, 0x52, 0xd);
+			regmap_write(regmap, 0x62, 0xd);
+			regmap_write(regmap, 0x72, 0xd);
+		}
 
 		regmap_write(regmap, 0x91, val[CLK]);
 		regmap_write(regmap, 0xa1, val[DATA]);
@@ -420,10 +434,17 @@ static int dphy_set_timing_regs(struct regmap *regmap, int type, u8 val[])
 		break;
 	case ZERO_TIME:
 		regmap_write(regmap, 0x33, val[CLK]);
-		regmap_write(regmap, 0x43, val[DATA]);
-		regmap_write(regmap, 0x53, val[DATA]);
-		regmap_write(regmap, 0x63, val[DATA]);
-		regmap_write(regmap, 0x73, val[DATA]);
+		if (!special_timing_mode) {
+			regmap_write(regmap, 0x43, val[DATA]);
+			regmap_write(regmap, 0x53, val[DATA]);
+			regmap_write(regmap, 0x63, val[DATA]);
+			regmap_write(regmap, 0x73, val[DATA]);
+		} else {
+			regmap_write(regmap, 0x43, 0x0);
+			regmap_write(regmap, 0x53, 0x0);
+			regmap_write(regmap, 0x63, 0x0);
+			regmap_write(regmap, 0x73, 0x0);
+		}
 
 		regmap_write(regmap, 0x92, val[CLK]);
 		regmap_write(regmap, 0xa2, val[DATA]);
@@ -433,10 +454,17 @@ static int dphy_set_timing_regs(struct regmap *regmap, int type, u8 val[])
 		break;
 	case TRAIL_TIME:
 		regmap_write(regmap, 0x34, val[CLK]);
-		regmap_write(regmap, 0x44, val[DATA]);
-		regmap_write(regmap, 0x54, val[DATA]);
-		regmap_write(regmap, 0x64, val[DATA]);
-		regmap_write(regmap, 0x74, val[DATA]);
+		if (!special_timing_mode) {
+			regmap_write(regmap, 0x44, val[DATA]);
+			regmap_write(regmap, 0x54, val[DATA]);
+			regmap_write(regmap, 0x64, val[DATA]);
+			regmap_write(regmap, 0x74, val[DATA]);
+		} else {
+			regmap_write(regmap, 0x44, 0xf);
+			regmap_write(regmap, 0x54, 0xf);
+			regmap_write(regmap, 0x64, 0xf);
+			regmap_write(regmap, 0x74, 0xf);
+		}
 
 		regmap_write(regmap, 0x93, val[CLK]);
 		regmap_write(regmap, 0xa3, val[DATA]);
@@ -487,6 +515,7 @@ static int dphy_timing_config(struct dphy_context *ctx)
 	/* t_ui: 1 ui, byteck: 8 ui, half byteck: 4 ui */
 	t_ui = 1000 * scale / (ctx->freq / 1000);
 	t_byteck = t_ui << 3;
+	pr_info("drm t_ui=%dns,t_byteck=%dns\n", t_ui, t_byteck);
 	t_half_byteck = t_ui << 2;
 	constant = t_ui << 1;
 
@@ -499,7 +528,7 @@ static int dphy_timing_config(struct dphy_context *ctx)
 	range[H] = INFINITY;
 	val[CLK] = ROUND_UP(range[L] * (factor << 1), t_byteck) - 2;
 	val[DATA] = val[CLK];
-	dphy_set_timing_regs(regmap, REQUEST_TIME, val);
+	dphy_set_timing_regs(regmap, REQUEST_TIME, val, ctx->special_timing_mode);
 
 	/* PREPARE_TIME: HS sequence: LP-00 */
 	range[L] = 38 * scale;
@@ -512,7 +541,7 @@ static int dphy_timing_config(struct dphy_context *ctx)
 	tmp |= AVERAGE(range[L], range[H]) << 16;
 	val[DATA] = ROUND_UP(AVERAGE(range[L], range[H]),
 			t_half_byteck) - 1;
-	dphy_set_timing_regs(regmap, PREPARE_TIME, val);
+	dphy_set_timing_regs(regmap, PREPARE_TIME, val, ctx->special_timing_mode);
 
 	/* ZERO_TIME: HS-ZERO */
 	range[L] = 300 * scale;
@@ -523,7 +552,7 @@ static int dphy_timing_config(struct dphy_context *ctx)
 	val[DATA] = ROUND_UP(range[L] * factor
 			+ ((tmp >> 16) & 0xffff) - 525 * t_byteck / 100,
 			t_byteck) - 2;
-	dphy_set_timing_regs(regmap, ZERO_TIME, val);
+	dphy_set_timing_regs(regmap, ZERO_TIME, val, ctx->special_timing_mode);
 
 	/* TRAIL_TIME: HS-TRAIL */
 	range[L] = 60 * scale;
@@ -531,21 +560,21 @@ static int dphy_timing_config(struct dphy_context *ctx)
 	val[CLK] = ROUND_UP(range[L] * factor - constant, t_half_byteck);
 	range[L] = MAX(8 * t_ui, 60 * scale + 4 * t_ui);
 	val[DATA] = ROUND_UP(range[L] * 3 / 2 - constant, t_half_byteck) - 2;
-	dphy_set_timing_regs(regmap, TRAIL_TIME, val);
+	dphy_set_timing_regs(regmap, TRAIL_TIME, val, ctx->special_timing_mode);
 
 	/* EXIT_TIME: */
 	range[L] = 100 * scale;
 	range[H] = INFINITY;
 	val[CLK] = ROUND_UP(range[L] * factor, t_byteck) - 2;
 	val[DATA] = val[CLK];
-	dphy_set_timing_regs(regmap, EXIT_TIME, val);
+	dphy_set_timing_regs(regmap, EXIT_TIME, val, ctx->special_timing_mode);
 
 	/* CLKPOST_TIME: */
 	range[L] = 60 * scale + 52 * t_ui;
 	range[H] = INFINITY;
 	val[CLK] = ROUND_UP(range[L] * factor, t_byteck) - 2;
 	val[DATA] = val[CLK];
-	dphy_set_timing_regs(regmap, CLKPOST_TIME, val);
+	dphy_set_timing_regs(regmap, CLKPOST_TIME, val, ctx->special_timing_mode);
 
 	/* SETTLE_TIME:
 	* This time is used for receiver. So for transmitter,

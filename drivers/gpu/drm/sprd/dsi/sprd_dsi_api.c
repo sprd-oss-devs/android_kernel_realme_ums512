@@ -225,7 +225,10 @@ int sprd_dsi_dpi_video(struct sprd_dsi *dsi)
 	dsi_hal_dpi_frame_ack_en(dsi, ctx->frame_ack_en);
 	dsi_hal_dpi_color_coding(dsi, coding);
 	dsi_hal_dpi_video_burst_mode(dsi, ctx->burst_mode);
-	dsi_hal_dpi_sig_delay(dsi, 95 * hline * ratio_x1000 / 100000);
+	if (!dsi->phy->ctx.special_timing_mode)
+		dsi_hal_dpi_sig_delay(dsi, 95 * hline * ratio_x1000 / 100000);
+	else
+		dsi_hal_dpi_sig_delay(dsi, 80 * hline * ratio_x1000 / 100000);
 	dsi_hal_dpi_hline_time(dsi, hline * ratio_x1000 / 1000);
 	dsi_hal_dpi_hsync_time(dsi, vm->hsync_len * ratio_x1000 / 1000);
 	dsi_hal_dpi_hbp_time(dsi, vm->hback_porch * ratio_x1000 / 1000);
@@ -233,7 +236,9 @@ int sprd_dsi_dpi_video(struct sprd_dsi *dsi)
 	dsi_hal_dpi_vfp(dsi, vm->vfront_porch);
 	dsi_hal_dpi_vbp(dsi, vm->vback_porch);
 	dsi_hal_dpi_vsync(dsi, vm->vsync_len);
-	dsi_hal_dpi_hporch_lp_en(dsi, 1);
+	dsi_hal_vblk_cmd_trans_limit(dsi, 0x80);
+	if (!ctx->hporch_lp_disable)
+		dsi_hal_dpi_hporch_lp_en(dsi, 1);
 	dsi_hal_dpi_vporch_lp_en(dsi, 1);
 	dsi_hal_dpi_hsync_pol(dsi, 0);
 	dsi_hal_dpi_vsync_pol(dsi, 0);
