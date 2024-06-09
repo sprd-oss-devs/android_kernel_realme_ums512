@@ -1144,7 +1144,12 @@ static int _mmc_sd_suspend(struct mmc_host *host)
 	if (mmc_card_removed(host->card))
 		goto out;
 
-	if (mmc_card_suspended(host->card))
+
+	if(host->card==NULL){
+		goto out;
+	}
+
+	if(mmc_card_suspended(host->card))
 		goto out;
 
 	if (!mmc_host_is_spi(host))
@@ -1196,7 +1201,11 @@ static int _mmc_sd_resume(struct mmc_host *host)
 	if (mmc_card_removed(host->card))
 		goto out;
 
-	if (!mmc_card_suspended(host->card))
+	if(host->card==NULL){
+		goto out;
+    }
+
+	if(!mmc_card_suspended(host->card))
 		goto out;
 
 	if (mmc_card_is_removable(host) && host->ops->get_cd &&

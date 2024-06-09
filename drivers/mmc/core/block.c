@@ -44,7 +44,7 @@
 #include <linux/mmc/host.h>
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/sd.h>
-
+#include <linux/mmc/ffu.h>
 #include <linux/uaccess.h>
 
 #include "queue.h"
@@ -72,12 +72,15 @@ MODULE_ALIAS("mmc:block");
 #define mmc_req_rel_wr(req)	((req->cmd_flags & REQ_FUA) && \
 				  (rq_data_dir(req) == WRITE))
 
+#if defined(CONFIG_EMMC_SOFTWARE_CQ_SUPPORT)
 /* emmc soft cmdq enabled if part idx <= PART_CMDQ_EN
  * user:  0
  * boot1: 1
  * boot2: 2
  */
 #define PART_CMDQ_EN 0
+extern int emmc_resetting_when_cmdq;
+#endif
 
 
 static DEFINE_MUTEX(block_mutex);
@@ -114,8 +117,9 @@ struct mmc_blk_data {
 	unsigned int	flags;
 #define MMC_BLK_CMD23	(1 << 0)	/* Can do SET_BLOCK_COUNT for multiblock */
 #define MMC_BLK_REL_WR	(1 << 1)	/* MMC Reliable write support */
+#if defined(CONFIG_EMMC_SOFTWARE_CQ_SUPPORT)
 #define MMC_BLK_CMD_QUEUE	(1 << 3) /* MMC command queue support*/
-
+#endif
 	unsigned int	usage;
 	unsigned int	read_only;
 	unsigned int	part_type;
@@ -386,11 +390,21 @@ static struct mmc_blk_ioc_data *mmc_blk_ioctl_copy_from_user(
 	}
 
 	idata->buf_bytes = (u64) idata->ic.blksz * idata->ic.blocks;
-	if (idata->buf_bytes > MMC_IOC_MAX_BYTES) {
-		err = -EOVERFLOW;
-		goto idata_err;
+#ifdef CONFIG_MMC_FFU_FUNCTION
+	if(idata->ic.opcode ==MMC_FFU_DOWNLOAD_OP) {
+		if (idata->buf_bytes > MMC_IOC_MAX_BYTES*2) {
+			err = -EOVERFLOW;
+			goto idata_err;
+		}
+	} else {
+#endif
+		if (idata->buf_bytes > MMC_IOC_MAX_BYTES) {
+			err = -EOVERFLOW;
+			goto idata_err;
+		}
+#ifdef CONFIG_MMC_FFU_FUNCTION
 	}
-
+#endif
 	if (!idata->buf_bytes) {
 		idata->buf = NULL;
 		return idata;
@@ -506,10 +520,15 @@ static int __mmc_blk_ioctl_cmd(struct mmc_card *card, struct mmc_blk_data *md,
 	int err;
 	unsigned int target_part;
 	u32 status = 0;
-
+#ifdef CONFIG_MMC_FFU_FUNCTION
+	bool ffu_mode= false;
+	struct scatterlist *sg_ptr;
+	struct sg_table sgtable;
+	unsigned int nents, left_size, i;
+	unsigned int seg_size = card->host->max_seg_size;  /* 65536 */
+#endif
 	if (!card || !md || !idata)
 		return -EINVAL;
-
 	/*
 	 * The RPMB accesses comes in from the character device, so we
 	 * need to target these explicitly. Else we just target the
@@ -527,15 +546,45 @@ static int __mmc_blk_ioctl_cmd(struct mmc_card *card, struct mmc_blk_data *md,
 	cmd.opcode = idata->ic.opcode;
 	cmd.arg = idata->ic.arg;
 	cmd.flags = idata->ic.flags;
+#ifdef CONFIG_MMC_FFU_FUNCTION
+	if (cmd.opcode == 6) {
+		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+		(cmd.arg >> 16) & 0xff, (cmd.arg >> 8) & 0xff,
+		card->ext_csd.generic_cmd6_time);
+		return err;
+	}
+#endif
 
 	if (idata->buf_bytes) {
-		data.sg = &sg;
-		data.sg_len = 1;
-		data.blksz = idata->ic.blksz;
-		data.blocks = idata->ic.blocks;
-
-		sg_init_one(data.sg, idata->buf, idata->buf_bytes);
-
+#ifdef CONFIG_MMC_FFU_FUNCTION
+			if (cmd.opcode == MMC_FFU_DOWNLOAD_OP
+				|| cmd.opcode == MMC_FFU_INSTALL_OP) {
+				ffu_mode= true;
+				left_size = idata->buf_bytes;
+				printk("left_size is %d\r\n",left_size);
+				nents = DIV_ROUND_UP(idata->buf_bytes, seg_size);
+				if (sg_alloc_table(&sgtable, nents, GFP_KERNEL))
+					return -ENOMEM;
+				data.sg = sgtable.sgl;
+				data.sg_len = nents;
+				data.blksz = idata->ic.blksz;
+				data.blocks = idata->ic.blocks;
+				for_each_sg(data.sg, sg_ptr, data.sg_len, i) {
+					sg_set_buf(sg_ptr, idata->buf + i * seg_size,
+						min(seg_size, left_size));
+					left_size -= seg_size;
+					printk("left_size1 is %d\r\n",left_size);
+				}
+			} else {
+#endif
+				data.sg = &sg;
+				data.sg_len = 1;
+				data.blksz = idata->ic.blksz;
+				data.blocks = idata->ic.blocks;
+				sg_init_one(data.sg, idata->buf, idata->buf_bytes);
+#ifdef CONFIG_MMC_FFU_FUNCTION
+			}
+#endif
 		if (idata->ic.write_flag)
 			data.flags = MMC_DATA_WRITE;
 		else
@@ -593,7 +642,12 @@ static int __mmc_blk_ioctl_cmd(struct mmc_card *card, struct mmc_blk_data *md,
 
 		return err;
 	}
-
+#ifdef CONFIG_MMC_FFU_FUNCTION
+	if (cmd.opcode == MMC_FFU_DOWNLOAD_OP
+		|| cmd.opcode == MMC_FFU_INSTALL_OP) {
+		mmc_wait_for_ffu_req(card->host, &mrq);
+	} else
+#endif
 	mmc_wait_for_req(card->host, &mrq);
 
 	if (cmd.error) {
@@ -645,7 +699,12 @@ static int __mmc_blk_ioctl_cmd(struct mmc_card *card, struct mmc_blk_data *md,
 					"%s: Card Status=0x%08X, error %d\n",
 					__func__, status, err);
 	}
-
+#ifdef CONFIG_MMC_FFU_FUNCTION
+	if (ffu_mode == true) {
+		if (nents > 1)
+			sg_free_table(&sgtable);
+		}
+#endif
 	return err;
 }
 
@@ -828,9 +887,11 @@ static int mmc_blk_ioctl(struct block_device *bdev, fmode_t mode,
 		mmc_blk_put(md);
 		return ret;
 	case MMC_IOC_MULTI_CMD:
+#if 0
 		ret = mmc_blk_check_blkdev(bdev);
 		if (ret)
 			return ret;
+#endif
 		md = mmc_blk_get(bdev->bd_disk);
 		if (!md)
 			return -EINVAL;
@@ -1294,6 +1355,10 @@ static int mmc_blk_reset(struct mmc_blk_data *md, struct mmc_host *host,
 	if (md->reset_done & type)
 		return -EEXIST;
 
+#ifdef CONFIG_EMMC_SOFTWARE_CQ_SUPPORT
+	/*hanging if not set*/
+	emmc_resetting_when_cmdq = 1;
+#endif
 	md->reset_done |= type;
 	err = mmc_hw_reset(host);
 	/* Ensure we switch back to the correct partition */
@@ -1312,6 +1377,9 @@ static int mmc_blk_reset(struct mmc_blk_data *md, struct mmc_host *host,
 			return -ENODEV;
 		}
 	}
+#ifdef CONFIG_EMMC_SOFTWARE_CQ_SUPPORT
+	emmc_resetting_when_cmdq = 0;
+#endif
 	return err;
 }
 
@@ -1619,10 +1687,9 @@ static enum mmc_blk_status mmc_blk_err_check(struct mmc_card *card,
 	int need_retune = card->host->need_retune;
 	bool ecc_err = false;
 	bool gen_err = false;
-	bool cmdq_en = false;
 
 #ifdef CONFIG_EMMC_SOFTWARE_CQ_SUPPORT
-	cmdq_en = mmc_card_cmdq(card);
+	bool cmdq_en = mmc_card_cmdq(card);
 #endif
 
 	/*
@@ -1635,7 +1702,10 @@ static enum mmc_blk_status mmc_blk_err_check(struct mmc_card *card,
 	 * stop.error indicates a problem with the stop command.  Data
 	 * may have been transferred, or may still be transferring.
 	 */
-	if (!cmdq_en) {
+#ifdef CONFIG_EMMC_SOFTWARE_CQ_SUPPORT
+	if (!cmdq_en)
+#endif
+	{
 		mmc_blk_eval_resp_error(brq);
 
 		if (brq->sbc.error || brq->cmd.error ||
@@ -1669,8 +1739,13 @@ static enum mmc_blk_status mmc_blk_err_check(struct mmc_card *card,
 	 * kind.  If it was a write, we may have transitioned to
 	 * program mode, which we have to wait for it to complete.
 	 */
+#ifdef CONFIG_EMMC_SOFTWARE_CQ_SUPPORT
 	if (!mmc_host_is_spi(card->host) && rq_data_dir(req) != READ
-		&& !cmdq_en) {
+		&& !cmdq_en)
+#else
+	if (!mmc_host_is_spi(card->host) && rq_data_dir(req) != READ)
+#endif
+	{
 		int err;
 
 		/* Check stop command response */
@@ -2042,7 +2117,11 @@ static void mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *new_req)
 		mqrq_cur = req_to_mmc_queue_req(new_req);
 		atomic_inc(&mq->qcnt);
 	}
-
+#ifdef CONFIG_EMMC_SOFTWARE_CQ_SUPPORT
+	if (mmc_card_cmdq(card))
+		mqrq_cur->sg =
+			mq->mqrq[atomic_read(&mqrq_cur->index) - 1].sg;
+#endif
 	if (!atomic_read(&mq->qcnt))
 		return;
 
@@ -2224,7 +2303,12 @@ bool mmc_blk_part_cmdq_en(struct mmc_queue *mq)
 #if defined(CONFIG_EMMC_SOFTWARE_CQ_SUPPORT)
 	int ret = false;
 	struct mmc_blk_data *md = mq->blkdata;
-	struct mmc_card *card = md->queue.card;
+	struct mmc_card *card;
+
+	if (!md)
+		return false;
+
+	card = md->queue.card;
 
 	/* enable cmdq at support partition */
 	if (card->ext_csd.cmdq_support
