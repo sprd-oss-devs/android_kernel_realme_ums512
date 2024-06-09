@@ -159,7 +159,11 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 		    global_zone_page_state(NR_FREE_CMA_PAGES));
 #endif
 
-#ifdef CONFIG_PROTECT_LRU
+#ifdef CONFIG_ION
+        show_val_kb(m, "IonTotalCache:       ", global_zone_page_state(NR_IONCACHE_PAGES));
+#endif
+
+	#ifdef CONFIG_PROTECT_LRU
 	show_val_kb(m, "PActive(anon):  ",
 		global_node_page_state(NR_PROTECT_ACTIVE_ANON));
 	show_val_kb(m, "PInactive(anon):",
