@@ -994,5 +994,12 @@ config REGULATOR_WM8994
 	  This driver provides support for the voltage regulators on the
 	  WM8994 CODEC.
 
+config REGULATOR_SM5109
+	tristate "Silicon Mitus SM5109 Dual Output Power regulators"
+	depends on I2C
+	help
+	  This driver supports SM5109 single inductor - dual output
+	  power supply specifcally designed for display panels.
+
 endif
 

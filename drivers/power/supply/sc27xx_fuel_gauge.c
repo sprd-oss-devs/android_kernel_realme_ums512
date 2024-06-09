@@ -7,7 +7,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/nvmem-consumer.h>
-#include <linux/of.h>
+#include <linux/of_gpio.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/power_supply.h>
@@ -86,6 +86,9 @@
 #define SC27XX_FGU_BAT_NTC_THRESHOLD	50
 #define SC27XX_FGU_LOW_VBAT_REGION	3300
 
+#define SC27XX_FGU_CURRENT_BUF_CNT	8
+#define SC27XX_FGU_VOLTAGE_BUF_CNT	8
+
 #define interpolate(x, x1, y1, x2, y2) \
 	((y1) + ((((y2) - (y1)) * ((x) - (x1))) / ((x2) - (x1))))
 
@@ -124,6 +127,7 @@ struct sc27xx_fgu_data {
 	struct gpio_desc *bat_gpiod;
 	struct iio_channel *channel;
 	struct iio_channel *charge_cha;
+	struct iio_channel *bat_id_cha;
 	bool bat_present;
 	int internal_resist;
 	int total_cap;
@@ -148,6 +152,7 @@ struct sc27xx_fgu_data {
 	int index;
 	int boot_vol;
 	bool bat_para_adapt_support;
+	bool is_first_poweron;
 	unsigned int bat_para_adapt_mode;
 	int temp_buff[SC27XX_FGU_TEMP_BUFF_CNT];
 	int bat_temp;
@@ -177,6 +182,8 @@ static const struct sc27xx_fgu_variant_data sc2720_info = {
 	.clk_en = SC2720_CLK_EN0,
 };
 
+struct sc27xx_fgu_data *g_fgu_data;
+
 static bool is_charger_mode;
 
 static int __init get_boot_mode(char *str)
@@ -198,7 +205,7 @@ static void sc27xx_fgu_low_capacity_calibration(struct sc27xx_fgu_data *data,
 static int sc27xx_fgu_get_temp(struct sc27xx_fgu_data *data, int *temp);
 static void sc27xx_fgu_adjust_cap(struct sc27xx_fgu_data *data, int cap);
 static int sc27xx_fgu_get_vbat_ocv(struct sc27xx_fgu_data *data, int *val);
-static int sc27xx_fgu_get_vbat_vol(struct sc27xx_fgu_data *data, int *val);
+static int sc27xx_fgu_get_vbat_now(struct sc27xx_fgu_data *data, int *val);
 
 static const char * const sc27xx_charger_supply_name[] = {
 	"sc2731_charger",
@@ -210,6 +217,68 @@ static const char * const sc27xx_charger_supply_name[] = {
 	"bq2560x_charger",
 	"eta6937_charger",
 };
+
+static int g_bat_id;
+
+int get_battery_id(void)
+{
+	return g_bat_id;
+}
+EXPORT_SYMBOL_GPL(get_battery_id);
+
+static int cal_bat_id(struct sc27xx_fgu_data *data)
+{
+	int i, err, vol;
+	bool flag = false;
+
+	err = iio_read_channel_processed(data->bat_id_cha, &vol);
+	if (err < 0) {
+		dev_err(data->dev, "bat-id iio_read failed\n");
+		goto fail0;
+	}
+
+	dev_info(data->dev, "[%s] adc bat-id vol=%d\n", __func__, vol);
+
+	g_bat_id = 0;
+	for(i = 0; i < BAT_COUNT * 2; ++i) {
+		if (vol < g_bat_id_vol[i])
+			break;
+		i++;
+
+		if(vol < g_bat_id_vol[i]) {
+			flag = true;
+			break;
+		}
+
+		g_bat_id++;
+	}
+	dev_err(data->dev, "[%s] flag = %d, id = %d\n", __func__, flag, g_bat_id);
+
+fail0:
+	if (flag)
+		return 0;
+
+	g_bat_id = BAT_COUNT;
+	dev_err(data->dev, "[%s] g_bat_id = %d\n", __func__, g_bat_id);
+
+	return -1;
+}
+
+int get_now_battery_id(void)
+{
+	int ret;
+
+	if (!g_fgu_data) {
+		dev_err(g_fgu_data->dev, "[%s] wait fgu init ok\n", __func__);
+		return 0;
+	}
+
+	ret = cal_bat_id(g_fgu_data);
+	if(ret)
+		dev_err(g_fgu_data->dev, "[%s] get bat id fail\n", __func__);
+
+	return g_bat_id;
+}
 
 static int sc27xx_fgu_adc_to_current(struct sc27xx_fgu_data *data, int adc)
 {
@@ -581,7 +650,7 @@ static int sc27xx_fgu_get_boot_capacity(struct sc27xx_fgu_data *data, int *cap)
 		dev_err(data->dev, "Failed to save last cap, ret = %d\n", ret);
 		return ret;
 	}
-
+	data->is_first_poweron = true;
 	dev_info(data->dev, "First_poweron: ocv = %d, cap = %d\n", ocv, *cap);
 	return sc27xx_fgu_save_boot_mode(data, SC27XX_FGU_NORMAIL_POWERTON);
 }
@@ -628,33 +697,39 @@ static int sc27xx_fgu_get_clbcnt(struct sc27xx_fgu_data *data, int *clb_cnt)
 	return 0;
 }
 
-static int sc27xx_fgu_get_vol_now(struct sc27xx_fgu_data *data, int *val)
+static int sc27xx_fgu_get_vbat_avg(struct sc27xx_fgu_data *data, int *val)
 {
 	int ret;
 	u32 vol;
+	int i;
 
-	ret = regmap_read(data->regmap,
-			  data->base + SC27XX_FGU_VOLTAGE_BUF,
-			  &vol);
-	if (ret)
-		return ret;
+	*val = 0;
+	for (i = 0; i < SC27XX_FGU_VOLTAGE_BUF_CNT; i++) {
+		ret = regmap_read(data->regmap,
+				  data->base + SC27XX_FGU_VOLTAGE_BUF + i * 4,
+				  &vol);
+		if (ret)
+			return ret;
 
-	/*
-	 * It is ADC values reading from registers which need to convert to
-	 * corresponding voltage values.
-	 */
-	*val = sc27xx_fgu_adc_to_voltage(data, vol);
+		/*
+		 * It is ADC values reading from registers which need to convert to
+		 * corresponding voltage values.
+		 */
+		*val += sc27xx_fgu_adc_to_voltage(data, vol);
+	}
+
+	*val /= 8;
 
 	return 0;
 }
 
-static int sc27xx_fgu_get_cur_now(struct sc27xx_fgu_data *data, int *val)
+static int sc27xx_fgu_get_current_now(struct sc27xx_fgu_data *data, int *val)
 {
 	int ret;
 	u32 cur;
 
 	ret = regmap_read(data->regmap,
-			  data->base + SC27XX_FGU_CURRENT_BUF,
+			  data->base + SC27XX_FGU_CURRENT,
 			  &cur);
 	if (ret)
 		return ret;
@@ -704,6 +779,18 @@ static int sc27xx_fgu_get_capacity(struct sc27xx_fgu_data *data, int *cap,
 	else if (data->normal_temperature_cap > 1000)
 		data->normal_temperature_cap = 1000;
 
+	dev_info(data->dev, "init_cap = %d, init_clbcnt = %d, cur_clbcnt = %d, normal_cap = %d, "
+		"delta_cap = %d, Tbat  = %d\n",
+		data->init_cap, data->init_clbcnt, cur_clbcnt,
+		data->normal_temperature_cap, delta_cap, data->bat_temp);
+
+	if (*cap < 0) {
+		*cap = 0;
+		dev_err(data->dev, "ERORR: normal_cap is < 0 !!!\n");
+		sc27xx_fgu_adjust_cap(data, 0);
+		return 0;
+	}
+
 	if (data->cap_table_len > 0) {
 		temp_cap = sc27xx_fgu_temp_to_cap(data->cap_temp_table,
 						  data->cap_table_len,
@@ -725,13 +812,11 @@ static int sc27xx_fgu_get_capacity(struct sc27xx_fgu_data *data, int *cap,
 		temp_cap *= 10;
 
 		*cap = DIV_ROUND_CLOSEST((*cap + temp_cap - 1000) * 1000, temp_cap);
+		if (*cap < 0)
+            *cap = 0;
 	}
 
-	if (*cap < 0) {
-		*cap = 0;
-		sc27xx_fgu_adjust_cap(data, 0);
-		return 0;
-	} else if (*cap > 1000) {
+	if (*cap > 1000) {
 		*cap = 1000;
 		data->init_cap = 1000 - delta_cap;
 		return 0;
@@ -742,7 +827,7 @@ static int sc27xx_fgu_get_capacity(struct sc27xx_fgu_data *data, int *cap,
 	return 0;
 }
 
-static int sc27xx_fgu_get_vbat_vol(struct sc27xx_fgu_data *data, int *val)
+static int sc27xx_fgu_get_vbat_now(struct sc27xx_fgu_data *data, int *val)
 {
 	int ret, vol;
 
@@ -759,19 +844,25 @@ static int sc27xx_fgu_get_vbat_vol(struct sc27xx_fgu_data *data, int *val)
 	return 0;
 }
 
-static int sc27xx_fgu_get_current(struct sc27xx_fgu_data *data, int *val)
+static int sc27xx_fgu_get_current_avg(struct sc27xx_fgu_data *data, int *val)
 {
 	int ret, cur;
+	int i;
 
-	ret = regmap_read(data->regmap, data->base + SC27XX_FGU_CURRENT, &cur);
-	if (ret)
-		return ret;
+	*val = 0;
 
-	/*
-	 * It is ADC values reading from registers which need to convert to
-	 * corresponding current values.
-	 */
-	*val = sc27xx_fgu_adc_to_current(data, cur - SC27XX_FGU_CUR_BASIC_ADC);
+	for (i = 0; i < SC27XX_FGU_CURRENT_BUF_CNT; i++) {
+		ret = regmap_read(data->regmap, data->base + SC27XX_FGU_CURRENT_BUF + i * 4, &cur);
+		if (ret)
+			return ret;
+		/*
+		 * It is ADC values reading from registers which need to convert to
+		 * corresponding current values.
+		 */
+		*val += sc27xx_fgu_adc_to_current(data, cur - SC27XX_FGU_CUR_BASIC_ADC);
+	}
+
+	*val /= 8;
 
 	return 0;
 }
@@ -780,11 +871,11 @@ static int sc27xx_fgu_get_vbat_ocv(struct sc27xx_fgu_data *data, int *val)
 {
 	int vol, cur, resistance, ret;
 
-	ret = sc27xx_fgu_get_vbat_vol(data, &vol);
+	ret = sc27xx_fgu_get_vbat_now(data, &vol);
 	if (ret)
 		return ret;
 
-	ret = sc27xx_fgu_get_current(data, &cur);
+	ret = sc27xx_fgu_get_current_now(data, &cur);
 	if (ret)
 		return ret;
 
@@ -881,7 +972,7 @@ static int sc27xx_fgu_get_temp(struct sc27xx_fgu_data *data, int *temp)
 	if (data->comp_resistance) {
 		int bat_current, resistance_vol;
 
-		ret = sc27xx_fgu_get_current(data, &bat_current);
+		ret = sc27xx_fgu_get_current_now(data, &bat_current);
 		if (ret) {
 			dev_err(data->dev, "failed to get battery current\n");
 			return ret;
@@ -924,7 +1015,7 @@ static int sc27xx_fgu_get_health(struct sc27xx_fgu_data *data, int *health)
 {
 	int ret, vol;
 
-	ret = sc27xx_fgu_get_vbat_vol(data, &vol);
+	ret = sc27xx_fgu_get_vbat_now(data, &vol);
 	if (ret)
 		return ret;
 
@@ -994,7 +1085,9 @@ static int sc27xx_fgu_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_PRESENT:
 		val->intval = data->bat_present;
 		break;
-
+	case POWER_SUPPLY_PROP_IS_FIRST_POWERON:
+		val->intval = data->is_first_poweron;
+		break;
 	case POWER_SUPPLY_PROP_TEMP:
 		if (data->temp_table_len <= 0) {
 			val->intval = 200;
@@ -1025,7 +1118,15 @@ static int sc27xx_fgu_get_property(struct power_supply *psy,
 		break;
 
 	case POWER_SUPPLY_PROP_VOLTAGE_AVG:
-		ret = sc27xx_fgu_get_vbat_vol(data, &value);
+		ret = sc27xx_fgu_get_vbat_avg(data, &value);
+		if (ret)
+			goto error;
+
+		val->intval = value * 1000;
+		break;
+
+	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+		ret = sc27xx_fgu_get_vbat_now(data, &value);
 		if (ret)
 			goto error;
 
@@ -1049,7 +1150,15 @@ static int sc27xx_fgu_get_property(struct power_supply *psy,
 		break;
 
 	case POWER_SUPPLY_PROP_CURRENT_AVG:
-		ret = sc27xx_fgu_get_current(data, &value);
+		ret = sc27xx_fgu_get_current_avg(data, &value);
+		if (ret)
+			goto error;
+
+		val->intval = value * 1000;
+		break;
+
+	case POWER_SUPPLY_PROP_CURRENT_NOW:
+		ret = sc27xx_fgu_get_current_now(data, &value);
 		if (ret)
 			goto error;
 
@@ -1069,22 +1178,6 @@ static int sc27xx_fgu_get_property(struct power_supply *psy,
 					  36 * SC27XX_FGU_SAMPLE_HZ);
 		val->intval = sc27xx_fgu_adc_to_current(data, value);
 
-		break;
-
-	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
-		ret = sc27xx_fgu_get_vol_now(data, &value);
-		if (ret)
-			goto error;
-
-		val->intval = value * 1000;
-		break;
-
-	case POWER_SUPPLY_PROP_CURRENT_NOW:
-		ret = sc27xx_fgu_get_cur_now(data, &value);
-		if (ret)
-			goto error;
-
-		val->intval = value * 1000;
 		break;
 
 	case POWER_SUPPLY_PROP_VOLTAGE_BOOT:
@@ -1216,7 +1309,7 @@ static void sc27xx_fgu_low_capacity_match_ocv(struct sc27xx_fgu_data *data,
 		return;
 	}
 
-	ret = sc27xx_fgu_get_vbat_vol(data, &batt_uV);
+	ret = sc27xx_fgu_get_vbat_now(data, &batt_uV);
 	if (ret) {
 		dev_err(data->dev, "get battery vol error.\n");
 		return;
@@ -1224,7 +1317,7 @@ static void sc27xx_fgu_low_capacity_match_ocv(struct sc27xx_fgu_data *data,
 
 	if ((batt_uV < SC27XX_FGU_LOW_VBAT_REGION || ocv < data->min_volt) &&
 	    cap > data->alarm_cap) {
-		data->init_cap -= 5;
+		data->init_cap -= 10;
 		if (data->init_cap < 0)
 			data->init_cap = 0;
 	} else if (ocv > data->min_volt && cap <= data->alarm_cap) {
@@ -1445,7 +1538,7 @@ static int sc27xx_fgu_hw_init(struct sc27xx_fgu_data *data,
 {
 	struct power_supply_battery_info info = { };
 	struct power_supply_battery_ocv_table *table;
-	int ret, delta_clbcnt, alarm_adc, num;
+	int ret, delta_clbcnt, alarm_adc, num, index, i;
 	struct device_node *np = data->dev->of_node;
 
 	if (data->bat_para_adapt_support) {
@@ -1461,9 +1554,12 @@ static int sc27xx_fgu_hw_init(struct sc27xx_fgu_data *data,
 		num = 0;
 	}
 
-	ret = power_supply_get_battery_info(data->battery, &info, num);
+	for(i = 0; i < BAT_COUNT * 2; i++)
+		dev_info(data->dev, "[%s] g_bat_id_vol[%d] = %d\n", __func__, i, g_bat_id_vol[i]);
+
+	ret = power_supply_get_battery_info(data->battery, &info, g_bat_id);
 	if (ret) {
-		dev_err(data->dev, "failed to get battery information\n");
+		dev_err(data->dev, "[%s] failed to get battery information\n", __func__);
 		return ret;
 	}
 
@@ -1526,6 +1622,12 @@ static int sc27xx_fgu_hw_init(struct sc27xx_fgu_data *data,
 		if (!data->resistance_table) {
 			power_supply_put_battery_info(data->battery, &info);
 			return -ENOMEM;
+		}
+
+		for(index = 0; index < data->resist_table_len; index++) {
+			dev_info(data->dev, "resistance_table %d %d\n",
+				data->resistance_table[index].temp,
+				data->resistance_table[index].resistance);
 		}
 	}
 
@@ -1730,6 +1832,15 @@ static int sc27xx_fgu_probe(struct platform_device *pdev)
 		return PTR_ERR(data->charge_cha);
 	}
 
+	data->bat_id_cha = devm_iio_channel_get(&pdev->dev, "bat-id");
+	if (IS_ERR(data->bat_id_cha)) {
+		dev_err(&pdev->dev, "fail to get bat-id IIO CHANNEL\n");
+		return PTR_ERR(data->bat_id_cha);
+	}
+	ret = cal_bat_id(data);
+	if(ret)
+		dev_err(&pdev->dev, "[%s] get bat id fail\n", __func__);
+
 	data->gpiod = devm_gpiod_get(&pdev->dev, "bat-detect", GPIOD_IN);
 	if (IS_ERR(data->gpiod)) {
 		dev_err(&pdev->dev, "failed to get battery detection GPIO\n");
@@ -1747,6 +1858,8 @@ static int sc27xx_fgu_probe(struct platform_device *pdev)
 	data->dev = &pdev->dev;
 	platform_set_drvdata(pdev, data);
 
+	g_fgu_data = data;
+
 	fgu_cfg.drv_data = data;
 	fgu_cfg.of_node = np;
 	data->battery = devm_power_supply_register(&pdev->dev, &sc27xx_fgu_desc,
@@ -1758,9 +1871,11 @@ static int sc27xx_fgu_probe(struct platform_device *pdev)
 
 	ret = sc27xx_fgu_hw_init(data, pdata);
 	if (ret) {
-		dev_err(&pdev->dev, "failed to initialize fgu hardware\n");
+		dev_err(&pdev->dev, "[%s] failed to initialize fgu hardware\n", __func__);
 		return ret;
 	}
+
+	dev_err(&pdev->dev, "[%s] sc27xx_fgu_hw_init end\n", __func__);
 
 	ret = devm_add_action(&pdev->dev, sc27xx_fgu_disable, data);
 	if (ret) {
