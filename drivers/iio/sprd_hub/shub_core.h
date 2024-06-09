@@ -31,14 +31,14 @@
 #define SIPC_PM_BUFID1             1
 #define SHUB_IIO_CHN_BITS             64
 /* light sensor calibrate min value is 280lux */
-#define LIGHT_SENSOR_MIN_VALUE  280
+#define LIGHT_SENSOR_MIN_VALUE  1
 /* light sensor calibrate max value is 520lux */
-#define LIGHT_SENSOR_MAX_VALUE  520
+#define LIGHT_SENSOR_MAX_VALUE  52000
 #define LIGHT_CALI_DATA_COUNT   5
 /* light sensor calibrate value is 400lux; Due to kernel seldom use
  * float data, so calibrate value multiply 10000
  */
-#define LIGHT_SENSOR_CALI_VALUE (400 * 10000)
+#define LIGHT_SENSOR_CALI_VALUE (1000 * 10000)
 /* prox sensor auto calibrate ground noise min value is 0 */
 #define PROX_SENSOR_MIN_VALUE   0
 
@@ -210,6 +210,7 @@ struct shub_data {
 	struct work_struct download_cali_data_work;
 	struct work_struct savecalifile_work;
 	struct notifier_block early_suspend;
+	struct notifier_block shub_reboot_notifier;
 	int is_sensorhub;
 	u8 cm4_operate_data[6];
 };

@@ -37,6 +37,10 @@
 #define SC27XX_ADC_RUN_NUM_MASK		GENMASK(7, 4)
 #define SC27XX_ADC_RUN_NUM_SHIFT	4
 
+#define SC27XX_ADC_CTL_AVER             GENMASK(10, 8)
+#define SC27XX_ADC_CTL_AVER_VALUE       4
+#define SC27XX_ADC_CTL_AVER_SHIFT       8
+
 /* Bits and mask definition for SC27XX_ADC_CH_CFG register */
 #define SC27XX_ADC_CHN_ID_MASK		GENMASK(4, 0)
 #define SC27XX_ADC_SCALE_MASK		GENMASK(10, 9)
@@ -451,6 +455,14 @@ static int sc27xx_adc_read(struct sc27xx_adc_data *data, int channel,
 				 SC27XX_ADC_EN, SC27XX_ADC_EN);
 	if (ret)
 		goto unlock_adc;
+
+	ret = regmap_update_bits(data->regmap, data->base + SC27XX_ADC_CTL,
+				 SC27XX_ADC_CTL_AVER,
+				 SC27XX_ADC_CTL_AVER_VALUE << SC27XX_ADC_CTL_AVER_SHIFT);
+	if (ret) {
+		dev_info(data->dev, "update adc ctl 0x4 fail\n");
+		goto unlock_adc;
+	}
 
 	ret = regmap_update_bits(data->regmap, data->base + SC27XX_ADC_INT_CLR,
 				 SC27XX_ADC_IRQ_CLR, SC27XX_ADC_IRQ_CLR);
