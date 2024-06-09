@@ -34,6 +34,7 @@
 #include <linux/timer.h>
 #include <linux/types.h>
 #include <linux/extcon.h>
+#include <linux/headset_notifier.h>
 
 #include "sprd-asoc-common.h"
 #include "sprd-codec.h"
@@ -1105,9 +1106,9 @@ void headset_set_audio_state(bool on)
 {
 	struct sprd_headset *hdst = sprd_hdst;
 
-	mutex_lock(&hdst->audio_on_lock);
+	//mutex_lock(&hdst->audio_on_lock);
 	hdst->audio_on = on;
-	mutex_unlock(&hdst->audio_on_lock);
+	//mutex_unlock(&hdst->audio_on_lock);
 	sprd_enable_hmicbias_polling(!on, false);
 }
 
@@ -1885,6 +1886,10 @@ static void sprd_headset_type_report(struct sprd_headset *hdst)
 	hdst->re_detect = false;
 	hdst->type_detecting = true;
 	hdst->time_after_4pole_report = 0;
+
+	//tp in headset mode
+	headset_notifier_call_chain(1,NULL);
+
 	if (pdata->support_typec_hdst)
 		headset_type = sprd_headset_get_type();
 	else
@@ -1997,6 +2002,9 @@ static void sprd_headset_insert_all_plugout(struct sprd_headset *hdst)
 	/* must be called before set hdst->plug_state_last == 0 */
 	sprd_enable_hmicbias_polling(false, true);
 	sprd_headset_power_set(&hdst->power_manager, "HEADMICBIAS", false);
+
+	//tp out headset mode
+	headset_notifier_call_chain(0,NULL);
 
 	switch (hdst->headphone) {
 	case HEADSET_NO_MIC:
