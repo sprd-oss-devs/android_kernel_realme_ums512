@@ -4668,6 +4668,8 @@ long si_mem_available(void)
 			global_node_page_state(NR_KERNEL_MISC_RECLAIMABLE);
 	available += reclaimable - min(reclaimable / 2, wmark_low);
 
+	available += global_zone_page_state(NR_IONCACHE_PAGES);
+
 #ifdef CONFIG_PROTECT_LRU
 	available -= (long)global_node_page_state(NR_PROTECT_ACTIVE_FILE) +
 		     (long)global_node_page_state(NR_PROTECT_INACTIVE_FILE);
