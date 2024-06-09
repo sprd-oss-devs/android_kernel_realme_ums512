@@ -182,6 +182,8 @@ struct charger_jeita_table {
 	int recovery_temp;
 	int current_ua;
 	int term_volt;
+	int step_chg_cur;
+	int step_chg_volt;
 };
 
 enum cm_track_state {
@@ -194,6 +196,7 @@ enum cm_track_state {
 
 struct cm_track_capacity {
 	enum cm_track_state state;
+	bool clear_cap_flag;
 	int start_clbcnt;
 	int start_cap;
 	int end_vol;
@@ -292,6 +295,7 @@ struct cap_remap_table {
  * @jeita_tab_array: Specify the jeita temperature table array, which is used to
  *	save the point of adjust the charging current according to the battery temperature.
  * @jeita_disabled: disable jeita function when needs
+ * @force_jeita_status: force jeita to this status when disable jeita
  * @temperature: the battery temperature
  * @internal_resist: the battery internal resistance in mOhm
  * @cap_table_len: the length of ocv-capacity table
@@ -367,6 +371,8 @@ struct charger_desc {
 	u64 update_capacity_time;
 	u64 last_query_time;
 
+	u64 charger_safety_time;
+
 	bool force_set_full;
 	u32 shutdown_voltage;
 
@@ -379,6 +385,7 @@ struct charger_desc {
 	struct charger_jeita_table *jeita_tab_array[CM_JEITA_MAX];
 
 	bool jeita_disabled;
+	int force_jeita_status;
 
 	int temperature;
 
@@ -443,7 +450,9 @@ struct charger_manager {
 	u64 charging_start_time;
 	u64 charging_end_time;
 	u32 charging_status;
+	const char *brand;
 	struct cm_track_capacity track;
+	int capacity_control;
 };
 
 #ifdef CONFIG_CHARGER_MANAGER
@@ -453,4 +462,50 @@ extern void cm_notify_event(struct power_supply *psy,
 static inline void cm_notify_event(struct power_supply *psy,
 				enum cm_event_types type, char *msg) { }
 #endif
+extern int get_battery_id(void);
+extern void get_charger_ic_reg_info(char *reg_info);
+
+enum {
+	ATO_SET = 0,
+	BAT_OVP_SET,
+	AGING_SET,
+	FRAMEWORK_SET,
+	BAT_ID_SET,
+	OVER_JEITA_TEMP_LIMIT,
+	BELOW_JEITA_TEMP_LIMIT,
+	BAT_POOR_CONTACT,
+	OTHERS_MAX,
+};
+
+#define CHG_VOL_OFFSET                      150000
+#define CHG_VOL_OFFSET_MAX                  400000
+#define CHG_LINE_IMPEDANCE                  127
+#define BQ2560X_VINDPM                      4600
+#define CM_WORK_TEMP_MAX                    850
+#define BATTERY_VOLTAGE_MAX                 4550000
+#define BATTERY_RECHARGE_VOLTAGE            4370000
+#define CM_BAT_OVP_STATUS                   (1 << 0)
+#define CM_STOP_CHARGE_NODE_STATUS          (1 << 1)
+#define CM_BAT_ID_ERROR_STATUS              (1 << 2)
+#define CM_AGING_CHARGE_STATUS              (1 << 3)
+#define CM_ATO_CHARGE_STATUS                (1 << 4)
+#define CM_OVER_JEITA_TEMP_LIMIT            (1 << 5)
+#define CM_VBUS_OVP_STATUS                  (1 << 6)
+#define CM_BATT_POOR_CONTACT                (1 << 7)
+#define CM_BELOW_JEITA_TEMP_LIMIT           (1 << 8)
+
+#define BAT_TEMP_ABNORMAL                   (-350)
+#define BAT_COUNT                           2
+static int g_bat_id_vol[BAT_COUNT *2] = {
+	0,200,		/*10K, lwn*/
+	300,600,	/*68K, atl*/
+};
+
+void charger_dev_enalbe_charger(int val);
+void set_charge_safety_timer(u64 time);
+void charger_set_ship_mode(void);
+void bq2560x_set_batfet_dis(void);
+void bq2560x_set_iterm(void);
+int get_now_battery_id(void);
+
 #endif /* _CHARGER_MANAGER_H */

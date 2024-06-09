@@ -154,6 +154,7 @@ enum zone_stat_item {
 	NR_ZSPAGES,		/* allocated in zsmalloc */
 #endif
 	NR_FREE_CMA_PAGES,
+	NR_IONCACHE_PAGES,
 	NR_FREE_HIGHATOMIC_PAGES,
 	NR_VM_ZONE_STAT_ITEMS };
 
