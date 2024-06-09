@@ -860,6 +860,7 @@ int start_integrate_wcn_truely(u32 subsys)
 	if (is_marlin) {
 		mdbg_atcmd_clean();
 		wcn_set_module_state(true);
+		wcn_set_loopcheck_state(true);
 		marlin_bootup_time_update();
 		if (unlikely(!first_start)) {
 			wcn_firmware_init();
@@ -1012,6 +1013,8 @@ int stop_integrate_wcn_truely(u32 subsys)
 	}
 
 	WCN_INFO("%s do stop\n", wcn_dev->name);
+	if (is_marlin)
+		wcn_set_loopcheck_state(false);
 	/* btwf use the send shutdown cp2 cmd way */
 	if (is_marlin && !sprdwcn_bus_get_carddump_status())
 		force_sleep = wcn_send_force_sleep_cmd(wcn_dev);

@@ -588,7 +588,6 @@ static int marlin_download_from_partition(void)
 	if (sec_img_magic != SEC_IMAGE_MAGIC) {
 		pr_info("%s image magic 0x%x.\n",
 			__func__, sec_img_magic);
-		img_size = FIRMWARE_MAX_SIZE;
 	} else if (marlin_dev->maxsz_btwf > 0) {
 		wcn_write_data_to_phy_addr(marlin_dev->base_addr_btwf, buffer, marlin_dev->maxsz_btwf);
 		if (wcn_firmware_sec_verify(1, marlin_dev->base_addr_btwf, marlin_dev->maxsz_btwf) < 0) {
@@ -600,9 +599,6 @@ static int marlin_download_from_partition(void)
 			wcn_read_data_from_phy_addr(marlin_dev->base_addr_btwf + SEC_IMAGE_HDR_SIZE,
 				buffer, img_size);
 		}
-	} else {
-		pr_info("%s sec image without reserved memory, check DTS pls.\n",
-			__func__);
 	}
 
 	ret = marlin_judge_imagepack(buffer);
@@ -764,9 +760,6 @@ static int gnss_download_from_partition(void)
 			wcn_read_data_from_phy_addr(marlin_dev->base_addr_gnss + SEC_IMAGE_HDR_SIZE,
 				buffer, img_size);
 		}
-	} else {
-		pr_info("%s sec image without reserved memory, check DTS pls.\n",
-			__func__);
 	}
 
 	len = 0;
@@ -2027,9 +2020,9 @@ static int chip_power_off(enum wcn_sub_sys subsys)
 	wifipa_enable(0);
 	marlin_avdd18_dcxo_enable(false);
 	marlin_clk_enable(false);
+	marlin_analog_power_enable(false);
 	marlin_chip_en(false, false);
 	marlin_digital_power_enable(false);
-	marlin_analog_power_enable(false);
 	chip_reset_release(0);
 	marlin_dev->wifi_need_download_ini_flag = 0;
 #ifndef CONFIG_WCN_PCIE
@@ -2678,7 +2671,7 @@ static int marlin_probe(struct platform_device *pdev)
 	wcn_bus_init();
 	bus_ops = get_wcn_bus_ops();
 	bus_ops->start_wcn = start_marlin;
-	bus_ops->start_wcn = stop_marlin;
+	bus_ops->stop_wcn = stop_marlin;
 
 	/* sdiom_init or pcie_init */
 	err = sprdwcn_bus_preinit();
@@ -2797,6 +2790,7 @@ static void marlin_shutdown(struct platform_device *pdev)
 		wcn_avdd12_bound_xtl(false);
 		wcn_wifipa_bound_xtl(false);
 		wifipa_enable(0);
+		marlin_analog_power_enable(false);
 		marlin_chip_en(false, false);
 	}
 	pr_info("%s end\n", __func__);

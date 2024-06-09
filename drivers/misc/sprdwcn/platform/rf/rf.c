@@ -597,6 +597,11 @@ static int wifi_nvm_parse(const char *path, const int type, void *p_data)
 	}
 
 	file_size = vfs_llseek(file, 0, SEEK_END);
+	if (file_size < 0) {
+		fput(file);
+		pr_err("vfs_llseek error\n");
+		return -1;
+	}
 	buffer_len = 0;
 	buffer = vmalloc(file_size);
 	p_buf = buffer;
