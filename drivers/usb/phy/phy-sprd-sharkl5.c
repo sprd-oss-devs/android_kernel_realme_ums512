@@ -42,6 +42,20 @@ struct sprd_hsphy {
 
 #define TUNEHSAMP_2_6MA		(3 << 25)
 #define TFREGRES_TUNE_VALUE	(0x14 << 19)
+#define ANA_REG_GLB_CHIP_ID_HIGH    0x1804
+#define FULLSPEED_USB33_TUNE        2700000
+
+static int boot_cali;
+static __init int sprd_hsphy_cali_mode(char *str)
+{
+    if (strcmp(str, "cali"))
+        boot_cali = 0;
+    else
+        boot_cali = 1;
+
+    return 0;
+}
+__setup("androidboot.mode=", sprd_hsphy_cali_mode);
 
 static inline void sprd_hsphy_reset_core(struct sprd_hsphy *phy)
 {
@@ -198,7 +212,7 @@ static int sprd_hsphy_init(struct usb_phy *x)
 	ret |= regmap_update_bits(phy->ana_g2,
 		REG_ANLG_PHY_G2_ANALOG_USB20_USB20_UTMI_CTL1,
 		msk, reg);
-
+#if 0
 	reg = TUNEHSAMP_2_6MA;
 	msk = MASK_ANLG_PHY_G2_ANALOG_USB20_USB20_TUNEHSAMP;
 	ret |= regmap_update_bits(phy->ana_g2,
@@ -210,7 +224,13 @@ static int sprd_hsphy_init(struct usb_phy *x)
 	ret |= regmap_update_bits(phy->ana_g2,
 		REG_ANLG_PHY_G2_ANALOG_USB20_USB20_TRIMMING,
 		msk, reg);
-
+#else
+    reg = 0x0465dfc0;
+    msk = 0xFFFFFFFF;
+    ret |= regmap_update_bits(phy->ana_g2,
+        REG_ANLG_PHY_G2_ANALOG_USB20_USB20_TRIMMING,
+        msk, reg);
+#endif
 	if (!atomic_read(&phy->reset)) {
 		sprd_hsphy_reset_core(phy);
 		atomic_set(&phy->reset, 1);
@@ -362,7 +382,7 @@ static int sprd_hsphy_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	int ret;
 	struct usb_otg *otg;
-	u32 reg, msk;
+	u32 reg, msk, val;
 
 	phy = devm_kzalloc(dev, sizeof(*phy), GFP_KERNEL);
 	if (!phy)
@@ -393,6 +413,13 @@ static int sprd_hsphy_probe(struct platform_device *pdev)
 		dev_err(dev, "unable to read ssphy vdd voltage\n");
 		return ret;
 	}
+
+    ret = regmap_read(phy->pmic, ANA_REG_GLB_CHIP_ID_HIGH, &val);
+    if (ret)
+        dev_err(dev, "unable to read pmic chipid\n");
+    if (boot_cali && (val == 0x2730))
+        phy->vdd_vol = FULLSPEED_USB33_TUNE;
+    dev_info(dev, "calimode vdd_vol:%d chipid:0x%x\n", phy->vdd_vol, val);
 
 	phy->vdd = devm_regulator_get(dev, "vdd");
 	if (IS_ERR(phy->vdd)) {

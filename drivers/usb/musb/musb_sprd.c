@@ -34,6 +34,7 @@
 #include <linux/wait.h>
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
+#include <linux/tp_usb_notifier.h>
 
 #include "musb_core.h"
 #include "sprd_musbhsdma.h"
@@ -83,6 +84,7 @@ struct sprd_glue {
 };
 
 static int boot_charging;
+static int tp_usb_flag = 0;
 
 static void sprd_musb_enable(struct musb *musb)
 {
@@ -509,6 +511,12 @@ static int musb_sprd_vbus_notifier(struct notifier_block *nb,
 			return 0;
 		}
 
+		//tp in usb mode
+		if(tp_usb_flag == 0){
+			tp_usb_notifier_call_chain(1,NULL);
+			tp_usb_flag = 1;
+		}
+
 		glue->vbus_active = 1;
 		glue->wq_mode = USB_DR_MODE_PERIPHERAL;
 		queue_work(system_unbound_wq, &glue->work);
@@ -522,6 +530,12 @@ static int musb_sprd_vbus_notifier(struct notifier_block *nb,
 			dev_info(glue->dev,
 				"ignore device disconnect detected from VBUS GPIO.\n");
 			return 0;
+		}
+
+		//tp out usb mode
+		if(tp_usb_flag == 1){
+			tp_usb_notifier_call_chain(0,NULL);
+			tp_usb_flag = 0;
 		}
 
 		glue->vbus_active = 0;
