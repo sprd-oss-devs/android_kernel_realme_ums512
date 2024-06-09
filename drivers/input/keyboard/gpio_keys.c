@@ -30,6 +30,8 @@
 #include <linux/of.h>
 #include <linux/of_irq.h>
 #include <linux/spinlock.h>
+#include <uapi/linux/input-event-codes.h>
+#include <linux/hardware_info.h>
 
 struct gpio_button_data {
 	const struct gpio_keys_button *button;
@@ -375,7 +377,9 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 		if (state)
 			input_event(input, type, button->code, button->value);
 	} else {
-		input_event(input, type, *bdata->code, state);
+		if (button->code != KEY_TV){
+			input_event(input, type, *bdata->code, state);
+		}
 	}
 	input_sync(input);
 }
@@ -384,9 +388,20 @@ static void gpio_keys_gpio_work_func(struct work_struct *work)
 {
 	struct gpio_button_data *bdata =
 		container_of(work, struct gpio_button_data, work.work);
+	const struct gpio_keys_button *button = bdata->button;
+	struct input_dev *input = bdata->input;
+	unsigned int type = button->type ?: EV_KEY;
 
 	gpio_keys_gpio_report_event(bdata);
 
+	if (type != EV_ABS){
+		if(button->code == KEY_TV){
+			input_event(input, type, KEY_TV, 1);
+			input_sync(input);
+			input_event(input, type, KEY_TV, 0);
+			input_sync(input);
+		}
+	}
 	if (bdata->button->wakeup)
 		pm_relax(bdata->input->dev.parent);
 }
@@ -540,6 +555,11 @@ static int gpio_keys_setup_key(struct platform_device *pdev,
 	}
 
 	if (bdata->gpiod) {
+		error = gpiod_export(bdata->gpiod, false);
+		if (error) {
+			dev_err(dev,"Unable to export for GPIO %d, error %d\n",button->gpio, error);
+			return error;
+		}
 		if (button->debounce_interval) {
 			error = gpiod_set_debounce(bdata->gpiod,
 					button->debounce_interval * 1000);
@@ -566,8 +586,11 @@ static int gpio_keys_setup_key(struct platform_device *pdev,
 		INIT_DELAYED_WORK(&bdata->work, gpio_keys_gpio_work_func);
 
 		isr = gpio_keys_gpio_isr;
-		irqflags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING;
-
+		if(button->code == KEY_TV){
+			irqflags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING | IRQF_ONESHOT;
+		} else{
+			irqflags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING;
+		}
 	} else {
 		if (!button->irq) {
 			dev_err(dev, "Found button without gpio or irq\n");
@@ -676,8 +699,11 @@ gpio_keys_get_devtree_pdata(struct device *dev)
 	struct gpio_keys_button *button;
 	struct fwnode_handle *child;
 	int nbuttons;
+	char* hw_id;
 
+	hw_id = hwid_get();
 	nbuttons = device_get_child_node_count(dev);
+
 	if (nbuttons == 0)
 		return ERR_PTR(-ENODEV);
 
@@ -686,6 +712,12 @@ gpio_keys_get_devtree_pdata(struct device *dev)
 			     GFP_KERNEL);
 	if (!pdata)
 		return ERR_PTR(-ENOMEM);
+
+    if(strcmp(hw_id,"19610_1_10_EVT") == 0 ||strcmp(hw_id,"19610_1_10_EVT2") == 0 ||
+        strcmp(hw_id,"19610_1_10_DVT") == 0){
+        nbuttons -= 1;
+		printk("****close cable key detect for modem****\n");
+    }
 
 	button = (struct gpio_keys_button *)(pdata + 1);
 
