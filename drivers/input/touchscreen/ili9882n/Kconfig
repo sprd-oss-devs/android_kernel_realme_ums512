@@ -1,10 +1,14 @@
 #
 # ili9881 driver
 #
+
 config TOUCHSCREEN_ILI9882N
 	bool "ili9882n Touchscreen Driver"
-	help
-	  Say Y here if you have a ili9882n Touchscreen.
+        depends on I2C
+        help
+          Say y here if you have ili9882n TDDI touch panel.
 
-	  If unsure, say N.
+          If unsure, say N.
 
+          To compile this driver as a module, choose M here: the
+          module will be called ili9882n-tddi.

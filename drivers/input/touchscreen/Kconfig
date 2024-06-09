@@ -1270,27 +1270,7 @@ config TOUCHSCREEN_CHIPONE
 	  To compile this driver as a module, choose M here: the
 	  module will be called chipone-tddi.
 
-config TOUCHSCREEN_FTS
-	tristate "Focal TDDI touchscreen for QualComm package"
-	depends on I2C
-	help
-	  Say y here if you have focal TDDI touch panel.
-
-	  If unsure, say N.
-
-	  To compile this driver as a module, choose M here: the
-	  module will be called focal-tddi.
 source "drivers/input/touchscreen/focaltech_touch/Kconfig"
 
-config TOUCHSCREEN_ILI9882N
-	tristate "Ili9882n TDDI touchscreen for QualComm package"
-	depends on I2C
-	help
-	  Say y here if you have ili9882n TDDI touch panel.
-
-	  If unsure, say N.
-
-	  To compile this driver as a module, choose M here: the
-	  module will be called ili9882n-tddi.
 source "drivers/input/touchscreen/ili9882n/Kconfig"
 endif

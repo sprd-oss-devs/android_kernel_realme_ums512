@@ -3,12 +3,15 @@
 #
 
 config TOUCHSCREEN_FTS
-    bool "Focaltech Touchscreen"
-    default n
-    depends on TOUCHSCREEN_FTS_CHIPSET
-    help
-      Say Y here if you have Focaltech touch panel.
-      If unsure, say N.
+	bool "Focaltech Touchscreen"
+	depends on I2C
+	help
+	  Say y here if you have focal TDDI touch panel.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called focal-tddi.
       
 config TOUCHSCREEN_FTS_DIRECTORY
     string "Focaltech ts directory name"
