@@ -51,15 +51,15 @@
 			/*TODO: ranges use to limit pm-sys & cali_lib memory region. it's not
 				standard use, need modify if possible*/
 			ranges = <0x88040000 0x0 0x88040000 0x200000>,/* ddr */
-				<0x49000 0x0 0x849000 0x5000>; /* iram */
+				<0x44000 0x0 0x844000 0xa000>; /* iram */
 			pm-sys@88040000 {
 				cproc,name = "pm_sys";
 				reg = <0x88040000 0x200000>;
 			};
 
-			cali_lib@49000 {
+			cali_lib@44000 {
 				cproc,name = "cali_lib";
-				reg = <0x49000 0x5000>; /*<cali_lib_addr size>*/
+				reg = <0x44000 0xa000>; /*<cali_lib_addr size>*/
 			};
 		};
 

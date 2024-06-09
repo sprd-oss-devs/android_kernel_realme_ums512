@@ -57,6 +57,11 @@
 			"Ext Ear", "EAR Pin",
 			"Ext Ear", "SPK Pin",
 			"Ext Ear", "HP Pin";
+
+		/* ext_control_type, hook selection, mode, gpio share */
+		sprd,spk-ext-pa-info = <0 0 1 0>;
+		sprd,spk-ext-pa-gpio = <&ap_gpio 156 0>;
+		/* sprd,spk-hp-enable-gpio = <&ap_gpio 116 0>; */
 		sprd-audio-card,headset = <&sprd_headset>;
 		sprd,syscon-agcp-ahb = <&audcp_ahb_regs>;
 		 /* fe dai-links */

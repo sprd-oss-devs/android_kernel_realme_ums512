@@ -7,17 +7,22 @@
 #include <dt-bindings/clock/sprd,sharkl5pro-clk.h>
 #include <dt-bindings/mfd/sprd,sc2730-regs.h>
 #include <dt-bindings/mfd/sprd,sc2730-mask.h>
-#include <dt-bindings/wdv/wdv.h>
 #include <dt-bindings/pinctrl/pinctrl-sprd.h>
+#include "lcd/lcd_hx83102d_skyworth_mipi_hd.dtsi"
+#include "lcd/lcd_icnl9911c_truly_mipi_hd.dtsi"
+#include "lcd/lcd_icnl9911c_truly_mipi_hd_new.dtsi"
+#include "lcd/lcd_ft8006s_holitech_mipi_hd.dtsi"
+#include "lcd/lcd_ft8006s_holitech_mipi_hd_new.dtsi"
+#include <dt-bindings/wdv/wdv.h>
 #include "lcd/lcd_dummy_mipi.dtsi"
-#include "battery/S19610AA1_LWN_4V45_5000mah.dtsi"
-#include "battery/S19610AA1_ATL_4V45_5000mah.dtsi"
+#include "battery/RMX3265_LWN_4V45_5000mah.dtsi"
+#include "battery/RMX3265_ATL_4V45_5000mah.dtsi"
 
 / {
 
 	model = "Unisoc UMS512 1H10 board";
-	compatible = "";
-	sprd,sc-id = "";
+	compatible = "sprd,RMX3265";
+	sprd,sc-id = "ums512 1h10 1000";
 
 	fragment {
 		target-path = "/";
@@ -69,7 +74,6 @@
 
 			gpio-keys {
 				compatible = "gpio-keys";
-
 				key-cablein {
 					label = "CABLEIN Key";
 					linux,code = <KEY_TV>;
@@ -77,7 +81,6 @@
 					debounce-interval = <2>;
 					wakeup-source;
 				};
-
 
 				key-volumedown {
 					label = "Volume Down Key";
@@ -115,8 +118,8 @@
 			nbatt: non_standard_batt {
 				compatible = "simple-battery";
 				brand = "non_standard_battery";
-				charge-full-design-microamp-hours = <4800000>;
-				charge-term-current-microamp = <240000>;
+				charge-full-design-microamp-hours = <4872000>;
+				charge-term-current-microamp = <256000>;
 				constant_charge_voltage_max_microvolt = <4432000>;
 				factory-internal-resistance-micro-ohms = <130000>;
 				voltage-min-design-microvolt = <3450000>;
@@ -140,37 +143,50 @@
 				capacity-temp-table = <45 100>, <25 100>, <10 98>, <0 93>, <(-10) 85>, <(-20) 64>;
 				resistance-temp-table = <45 100>, <25 100>, <10 546>, <0 769>, <(-10) 892>, <(-20) 923>;
 				charge-sdp-current-microamp = <480000 500000>;
-				charge-dcp-current-microamp = <1980000 2000000>;
+				charge-dcp-current-microamp = <2200000 2200000>;
 				charge-cdp-current-microamp = <1500000 1500000>;
 				charge-unknown-current-microamp = <1200000 1200000>;
+				charge-fchg-current-microamp = <1700000 1000000>; /*1700 1000*/
 				cm-dcp-jeita-temp-table = <980 981 0 3980000 0 3980000>,
-					<1000 1030 480000 3980000 480000 3980000>,
-					<1050 1080 480000 4435000 480000 4435000>,
-					<1120 1150 1000000 4435000 1000000 4435000>,
-					<1160 1190 1500000 4435000 1500000 4435000>,
-					<1450 1420 1980000 4435000 1980000 4435000>,
-					<1530 1500 1500000 4130000 1500000 4130000>;
+					<1000 1010 364000 3980000 364000 3980000>,
+					<1050 1080 2200000 4432000 1425000 4180000>,
+					<1120 1150 2200000 4432000 2200000 4432000>,
+					<1160 1190 2200000 4432000 2200000 4432000>,
+					<1450 1420 2200000 4432000 2200000 4432000>,
+					<1530 1500 1425000 4112000 1425000 4112000>;
 				cm-sdp-jeita-temp-table = <980 981 0 3980000 0 3980000>,
-					<1000 1030 480000 3980000 480000 3980000>,
-					<1050 1080 480000 4435000 480000 4435000>,
-					<1120 1150 480000 4435000 480000 4435000>,
-					<1160 1190 480000 4435000 480000 4435000>,
-					<1450 1420 480000 4435000 480000 4435000>,
-					<1530 1500 480000 4130000 480000 4130000>;
+					<1000 1030 364000 3980000 364000 3980000>,
+					<1050 1080 480000 4432000 480000 4432000>,
+					<1120 1150 480000 4432000 480000 4432000>,
+					<1160 1190 480000 4432000 480000 4432000>,
+					<1450 1420 480000 4432000 480000 4432000>,
+					<1530 1500 480000 4112000 480000 4112000>;
 				cm-cdp-jeita-temp-table = <980 981 0 3980000 0 3980000>,
-					<1000 1030 480000 3980000 480000 3980000>,
-					<1050 1080 480000 4435000 480000 4435000>,
-					<1120 1150 1000000 4435000 1000000 4435000>,
-					<1160 1190 1500000 4435000 1500000 4435000>,
-					<1450 1420 1500000 4435000 1500000 4435000>,
-					<1530 1500 1000000 4130000 1000000 4130000>;
+					<1000 1030 364000 3980000 364000 3980000>,
+					<1050 1080 480000 4432000 480000 4432000>,
+					<1120 1150 1000000 4432000 1000000 4432000>,
+					<1160 1190 1500000 4432000 1500000 4432000>,
+					<1450 1420 1500000 4432000 1500000 4432000>,
+					<1530 1500 1000000 4112000 1000000 4112000>;
 				cm-unknown-jeita-temp-table = <980 981 0 3980000 0 3980000>,
-					<1000 1030 480000 3980000 480000 3980000>,
-					<1050 1080 480000 4435000 480000 4435000>,
-					<1120 1150 1000000 4435000 1000000 4435000>,
-					<1160 1190 1200000 4435000 1200000 4435000>,
-					<1450 1420 1200000 4435000 1200000 4435000>,
-					<1530 1500 1000000 4130000 1000000 4130000>;
+					<1000 1030 364000 3980000 364000 3980000>,
+					<1050 1080 480000 4432000 480000 4432000>,
+					<1120 1150 1000000 4432000 1000000 4432000>,
+					<1160 1190 1200000 4432000 1200000 4432000>,
+					<1450 1420 1200000 4432000 1200000 4432000>,
+					<1530 1500 1000000 4112000 1000000 4112000>;
+				cm-fchg-jeita-temp-table = <980 981 0 3980000 0 3980000>,/* <-2 invalid */
+					<1000 1010 364000 3980000 364000 3980000>,/* -2-0 invalid */
+					<1050 1060 1187000 4432000 712000 4180000>,/* 0-5 */
+					<1120 1130 1187000 4432000 1187000 4432000>,/* 5-12 */
+					<1160 1190 1662000 4432000 1187000 4180000>,/* 12-16 */
+					<1220 1230 1500000 4432000 1500000 4432000>,/* 16-22 */
+					<1340 1330 1700000 4432000 1590000 4180000>,/* 22-34 */
+					<1370 1360 1590000 4432000 1590000 4432000>,/* 34-37 */
+					<1400 1390 1400000 4432000 1400000 4432000>,/* 37-40 */
+					<1420 1410 1330000 4432000 1330000 4432000>,/* 40-42 */
+					<1450 1420 480000 4432000 480000 4432000>,/* 42-45 invalid */
+					<1530 1500 480000 4112000 480000 4112000>;/* 45-53 invalid */
 			};
 
 			charger-manager {
@@ -183,11 +199,13 @@
 				cm-fullbatt-vchkdrop-ms = <30000>;
 				cm-fullbatt-vchkdrop-volt = <60000>;
 				cm-fullbatt-voltage = <4350000 4350000>;
-				cm-fullbatt-current = <240000>;
+				cm-fullbatt-current = <260000>;
 				cm-fullbatt-capacity = <100>;
 
-				cm-num-chargers = <1>;
-				cm-chargers = "bq2560x_charger";
+				cm-num-chargers = <2>;
+				cm-num-fast-chargers = <1>;
+				cm-chargers = "bq2560x_charger", "bq2560x_slave_charger";
+				cm-fast-chargers = "sc2730_fast_charger";
 				cm-fuel-gauge = "sc27xx-fgu";
 
 				/* in deci centigrade */
@@ -208,7 +226,7 @@
 				cm-shutdown-voltage = <3400000>;
 
 				/* when 99% of the time is exceeded, it will be forced to 100% */
-				cm-tickle-time-out = <1500>;
+				cm-tickle-time-out = <900>; /* 15min */
 
 				/* how much time to allow capacity change */
 				cm-one-cap-time = <30>;
@@ -218,12 +236,20 @@
 				/* drop voltage in microVolts to restart charging */
 				cm-charge-voltage-drop = <700000>;
 
+				/* when the safe charging voltage is exceeded, stop charging */
+				cm-fast-charge-voltage-max = <10000000>;
+				/* drop voltage in microVolts to restart charging */
+				cm-fast-charge-voltage-drop = <300000>;
+
+				cm-double-ic-total-limit-current = <2000000>;
+
 				cm-force-jeita-status = <5>;
+
+				cm-ir-rc = <17>;
+				cm-ir-us-upper-limit-microvolt = <4450000>;
 
 				monitored-battery = <&bat &bat1 &nbatt>;
 				cm-capacity-track;
-
-				cm-cap-remap-table = <1 3 2>, <95 99 2>, <99 100 3>;
 
 				regulator@0 {
 					cm-regulator-name = "vddgen0";
@@ -359,12 +385,15 @@
 								114889 57
 								124872 43 >;
 			};
+			oplus_devinfo {
+				compatible = "oplus-devinfo";
+			};
 		};
 	};
 };
 
 &chosen {
-	bootargs_ext = "androidboot.hardware=ums512_1h10 androidboot.dtbo_idx=0";
+	bootargs_ext = "androidboot.hardware=RMX3265 androidboot.dtbo_idx=0";
 };
 
 &reserved_memory {
@@ -569,10 +598,11 @@
 		vddio-supply = <&vddcamio>;
 		vddcama-supply = <&vddcama1>;
 
-		reset-gpios = <&ap_gpio 139 0>;//MCLOCk switch
-		power-down-gpios = <&ap_gpio 47 0>;
+		mipi-switch-en-gpios = <&ap_gpio 139 0>;//CAM_MIPI_SW_EN
+		mipi-switch-mode-gpios = <&ap_gpio 116 0>;//FCAM_SEL
 
-		sprd,phyid = <4>;
+		power-down-gpios = <&ap_gpio 47 0>;
+		sprd,phyid = <2>;
 		csi = <&csi1>;
 	};
 };
@@ -594,7 +624,8 @@
 		vddcama-supply = <&vddcama1>;
 		vddcamd-supply = <&vddcamd1>;
 		reset-gpios = <&ap_gpio 45 0>;
-		sprd,phyid = <3>;
+		power-down-gpios = <&ap_gpio 46 0>;
+		sprd,phyid = <1>;
 		csi = <&csi0>;
 	};
 
@@ -610,7 +641,9 @@
 		vddio-supply = <&vddcamio>;
 		vddcama-supply = <&vddcama1>;
 
-		reset-gpios = <&ap_gpio 139 0>;//mclok switch
+		mipi-switch-en-gpios = <&ap_gpio 139 0>;//CAM_MIPI_SW_EN
+		mipi-switch-mode-gpios = <&ap_gpio 116 0>;//FCAM_SEL
+
 		power-down-gpios = <&ap_gpio 41 0>;
 		sprd,phyid = <2>;
 		csi = <&csi1>;
@@ -637,7 +670,29 @@
 };
 
 &i2c3 {
-	status = "disable";
+	status = "okay";
+	clock-frequency = <400000>;
+
+	bq2560x_chg:charger@6a{
+		compatible = "ti,bq2560x_chg";
+		reg = <0x6a>;
+		phys = <&hsphy>;
+		monitored-battery = <&bat &bat1 &nbatt>;
+		extcon = <&extcon_gpio>;
+		vddvbus:otg-vbus{
+			regulator-name = "vddvbus";
+		};
+	};
+
+	bq2560x_slave_chg:charger@6b {
+		compatible = "ti,bq2560x_slave_chg";
+		reg = <0x6b>;
+		phys = <&hsphy>;
+		monitored-battery = <&bat &bat1 &nbatt>;
+		extcon = <&extcon_gpio>;
+		enable-gpio = <&ap_gpio 25 GPIO_ACTIVE_LOW>;
+		role-slave;
+	};
 };
 
 &i2c4 {
@@ -688,7 +743,7 @@
 	status = "okay";
 
 	touchscreen@0 {
-		compatible = "himax,hxcommon", "chipone-tddi", "focal,focaltech";
+		compatible = "himax,hxcommon", "chipone-tddi", "focal,focaltech", "tchip,ilitek";
 		spi-max-frequency = <10000000>;
 		reg = <0x0>;
 		interrupt-parent = <&ap_gpio>;
@@ -707,7 +762,7 @@
 		touch,rst-gpio = <&ap_gpio 145 GPIO_ACTIVE_HIGH>;
 		touch,panel-coords = <0 720 0 1600>;
 		focaltech,max-touch-number = <10>;
-		focaltech,display-coords =  <0 0 720 1600>;
+		focaltech,display-coords =  <0 0 719 1599>;
 		/* Charger detect */
 		//chipone,touch-charger-detect-enable;
 		//chipone,touch-charger-detect-type = "notify"; /* notify, poll */
@@ -729,17 +784,6 @@
 &aon_i2c0 {
 	status = "okay";
 	clock-frequency = <360000>;
-
-	bq2560x_chg:charger@6b{
-		compatible = "ti,bq2560x_chg";
-		reg = <0x6b>;
-		phys = <&hsphy>;
-		monitored-battery = <&bat &bat1 &nbatt>;
-		extcon = <&extcon_gpio>;
-		vddvbus:otg-vbus{
-			regulator-name = "vddvbus";
-		};
-	};
 
 	fan53555_dcdc: regulator@60 {
 		compatible = "fcs,fan53555";
@@ -778,14 +822,20 @@
 	monitored-battery = <&bat &bat1 &nbatt>;
 	sprd,calib-resistance-real = <10000>;
 	sprd,calib-resistance-spec = <20000>;
-	first-calib-voltage = <3677000>;
-	first-calib-capacity = <50>;
+	first-calib-voltage = <3600000>;
+	first-calib-capacity = <40>;
 	io-channels = <&pmic_adc 0>, <&pmic_adc 6>, <&pmic_adc 14>;
 	io-channel-names = "bat-temp", "bat-id", "charge-vol";
 };
 
+&pmic_fchg {
+        sprd,input-voltage-microvolt = <5000000>;
+        phys = <&hsphy>;
+};
+
 &usb {
 	//extcon = <&extcon_gpio>, <&pmic_typec>;
+	usb-sw-gpios = <&ap_gpio 136 0>;
 	extcon = <&extcon_gpio>;
 	vbus-supply = <&vddvbus>;
 };
@@ -795,9 +845,9 @@
 };
 
 &adi_bus {
-	sprd,hw-channels = <2 0x18cc>, <3 0x18cc>, <13 0x1874>, <15 0x1874>,
-			 <17 0x1844>,<19 0x1854>, <21 0x1864>, <30 0x1820>,
-                         <35 0x19b8>, <39 0x19ac>, <32 0x197c>, <33 0x1988>;
+	sprd,hw-channels = <2 0x18cc>, <3 0x18cc>, <13 0x1854>, <15 0x1874>,
+                           <17 0x1844>,<19 0x1844>, <21 0x1864>, <30 0x1820>,
+	                   <35 0x19b8>, <39 0x19ac>;
 };
 
 &dvfs_dcdc_cpu0_supply {
@@ -831,28 +881,26 @@
 };
 
 &dvfs_dcdc_cpu1_supply {
-	/*
-	 * chnl-i2c-used;
-	 * third-pmic-used;
-	 */
-	pmic-type-num = <0>;
-	slew-rate = <9375>; /* 4000uV/us */
-	supply-type-sel = <0x120 0 0>;
-	top-dvfs-adi-state = <0x9c 0 0xf>;
+	chnl-i2c-used;
+	third-pmic-used;
+	pmic-type-num = <2>;
+	slew-rate = <4000>; /* 4000uV/us */
+	supply-type-sel = <0x120 0 1>;
+	top-dvfs-i2c-state = <0x9c 4 0xf>;
 	voltage-grade-num = <6>;
-	voltage-grade = <0 0xf0 0x100 0 0x1ff>,
-		<1 0x100 0x100 9 0x1ff>,
-		<2 0x110 0x100 18 0x1ff>,
-		<3 0x120 0x104 0 0x1ff>,
-		<4 0x130 0x104 9 0x1ff>,
-		<5 0x140 0x104 18 0x1ff>;
+	voltage-grade = <0 0x0f 0x12c 0 0x7f>,
+		<1 0x14 0x12c 7 0x7f>,
+		<2 0x19 0x12c 14 0x7f>,
+		<3 0x1e 0x12c 21 0x7f>,
+		<4 0x23 0x130 0 0x7f>,
+		<5 0x28 0x130 7 0x7f>;
 	voltage-up-delay = <50 0x84 0 0xffff 0x1600>,
-		<100 0x84 16 0xffff 0xa00>,
+		<100 0x84 16 0xffff 0x1a00>,
 		<150 0x80 0 0xffff 0x1f00>,
-		<200 0x80 16 0xffff 0x1400>,
-		<250 0x7c 0 0xffff 0x1900>,
-		<300 0x7c 16 0xffff 0x1e00>,
-		<350 0x118 0 0xffff 0x2300>;
+		<200 0x80 16 0xffff 0x2400>,
+                <250 0x7c 0 0xffff 0x2900>,
+                <300 0x7c 16 0xffff 0x2e00>,
+		<350 0x118 0 0xffff 0x3300>;
 	voltage-down-delay = <50 0x90 0 0xffff 0x600>,
 		<100 0x90 16 0xffff 0xa00>,
 		<150 0x8c 0 0xffff 0xf00>,
@@ -860,8 +908,8 @@
 		<250 0x88 0 0xffff 0x1900>,
 		<300 0x88 16 0xffff 0x1e00>,
 		<350 0x11c 0 0xffff 0x2300>;
-	tuning-latency-us = <200>;
-	chnl-in-i2c = <0>;
+	tuning-latency-us = <0>;
+        chnl-in-i2c = <1>;
 };
 
 &ion {

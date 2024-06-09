@@ -58,6 +58,7 @@
 	extcon_gpio: extcon-gpio {
 		compatible = "linux,extcon-usb-gpio";
 		vbus-gpio = <&pmic_eic 0 GPIO_ACTIVE_HIGH>;
+		id-gpio = <&eic_debounce 12 GPIO_ACTIVE_HIGH>;
 	};
 
 	vsp_dvfs: vsp-dvfs {
@@ -106,7 +107,7 @@
 
 			vbmeta {
 				compatible = "android,vbmeta";
-				parts = "vbmeta,socko,odmko,boot,dtbo,l_modem,pm_sys,l_ldsp,l_gdsp,l_agdsp,l_cdsp";
+				parts = "vbmeta,socko,odmko,boot,dtbo,l_modem,pm_sys,l_ldsp,l_gdsp,l_agdsp";
 			};
 
 		};
@@ -150,8 +151,8 @@
 			reg = <0x0 0x87800000 0x0 0x00800000>;
 		};
 
-		sensorhub_reserved: sensorhub-mem@88000000 {
-			reg = <0x0 0x88000000 0x0 0x01000000>;
+		sp_ddr_reserved: sp-ddr-mem@88000000 {
+			reg = <0x0 0x88000000 0x0 0x00300000>;
 		};
 
 		audiodsp_reserved: audiodsp-mem@89000000 {
@@ -174,7 +175,7 @@
 		};
 
 		tos_reserved: tos-mem@94040000 {
-			reg = <0x0 0x94040000 0x0 0x05fc0000>;
+			reg = <0x0 0x94040000 0x0 0x03fc0000>;
 		};
 
 		pstore_reserved: ramoops@fff80000 {
@@ -188,12 +189,21 @@
 		debug_reserved: debug-mem@100000000 {
 			reg = <0x1 0x00000000 0x0 0x00001000>;
 		};
+
+                honor_reserved: debug-mem@844c0000 {
+                       reg = <0x0 0x844c0000 0x0 0x00004000>;
+                };
+
 	};
 
 	sprd-iq {
 		compatible = "sprd,iq";
 		sprd,region = <&iq_reserved>;
 		sprd,mapping-offs = <0x0>;
+	};
+
+	sprd-map-user {
+		compatible = "sprd,map-user";
 	};
 
 	sprd-mtty {
@@ -688,15 +698,17 @@
 	extcon = <&extcon_gpio>;
 };
 
-&modem_dbg_log{
-	status = "okay";
-	clock-names = "serdes_eb", "mm_eb", "ana_eb", "dphy_cfg_eb", "dphy_ref_eb", "dsi_csi_test_eb", "cphy_cfg_eb";
-	clocks = <&aonapb_gate CLK_SERDES_EB>, <&aonapb_gate CLK_MM_EB>, <&aonapb_gate CLK_ANA_EB>, <&aonapb_gate CLK_SDPHY_CFG_EB>,
-		<&aonapb_gate CLK_SDPHY_REF_EB>, <&aonapb_gate CLK_DSI_CSI_TEST_EB>, <&aonapb_gate CLK_CPHY_CFG_EN>;
-	vddio-supply = <&vddcamio>;
-	mipi-switch-en-gpios = <&ap_gpio 55 GPIO_ACTIVE_HIGH>;
-	mipi-switch-mode-gpios = <&ap_gpio 8 GPIO_ACTIVE_HIGH>;
-};
+/*
+ *&modem_dbg_log{
+ *	status = "okay";
+ *	clock-names = "serdes_eb", "mm_eb", "ana_eb", "dphy_cfg_eb", "dphy_ref_eb", "dsi_csi_test_eb", "cphy_cfg_eb";
+ *	clocks = <&aonapb_gate CLK_SERDES_EB>, <&aonapb_gate CLK_MM_EB>, <&aonapb_gate CLK_ANA_EB>, <&aonapb_gate CLK_SDPHY_CFG_EB>,
+ *		<&aonapb_gate CLK_SDPHY_REF_EB>, <&aonapb_gate CLK_DSI_CSI_TEST_EB>, <&aonapb_gate CLK_CPHY_CFG_EN>;
+ *	vddio-supply = <&vddcamio>;
+ *	mipi-switch-en-gpios = <&ap_gpio 55 GPIO_ACTIVE_HIGH>;
+ *	mipi-switch-mode-gpios = <&ap_gpio 8 GPIO_ACTIVE_HIGH>;
+ *};
+ */
 
 &pmic_typec {
 	status = "okay";
@@ -885,24 +897,8 @@
 	sprd,panic;
 };
 
-&i2c4 {
-	status = "okay";
-	clock-frequency = <400000>;
-
-	ucp1301_spk: ucp1301@58 {
-		compatible = "sprd,ucp1301-spk";
-		reg = <0x58>;
-		reset-gpios = <&ap_gpio 134 GPIO_ACTIVE_HIGH>;
-		#sound-dai-cells = <1>;
-	};
-};
-
 &sprd_headset {
 	status = "okay";
-	extcon = <&pmic_typec>;
-	mic-gpios = <&ap_gpio 16 GPIO_ACTIVE_HIGH>;
-	lr-gpios = <&ap_gpio 15 GPIO_ACTIVE_HIGH>;
-	sprd,3pole-adc-threshold = <112>;
 };
 
 &sprd_audio_codec_ana {
@@ -920,31 +916,9 @@
 		"MIC2 Pin", "Aux Mic Jack",
 		"HeadPhone Jack", "HP Pin",
 		"Ext Spk", "SPK Pin",
-		"UCP1301 SPK ON", "SPK Pin",
-		"Ext Spk", "UCP1301 SPK",
 		"DMIC Pin", "DMic Jack",
 		"DMIC1 Pin", "DMic1 Jack",
 		"Ext Ear", "EAR Pin";
-
-	/* 35: ucp1301 normal ap01 */
-	sprd-audio-card,dai-link@53 {
-		ignore-suspend = <1>;
-		link-name = "BE_NORMAL_AP01_UCPSPK";
-		stream-name = "BE_ST_NORMAL_AP01_UCPSPK";
-		no-pcm = <1>;
-		dpcm-playback = <1>;
-		be-id = <0>;
-		dai-format = "i2s";
-		plat {
-			sound-dai = <&sprd_route_pcm>;
-		};
-		cpu {
-			sound-dai = <&vbc_v4 3>;
-		};
-		codec {
-			sound-dai = <&ucp1301_spk 0>;
-		};
-	};
 
 	/*
 	 * node 54 and node 55 (index 36 and 37) are reserved for

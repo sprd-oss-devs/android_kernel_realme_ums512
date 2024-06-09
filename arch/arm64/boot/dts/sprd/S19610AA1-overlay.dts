@@ -7,8 +7,17 @@
 #include <dt-bindings/clock/sprd,sharkl5pro-clk.h>
 #include <dt-bindings/mfd/sprd,sc2730-regs.h>
 #include <dt-bindings/mfd/sprd,sc2730-mask.h>
-#include <dt-bindings/wdv/wdv.h>
 #include <dt-bindings/pinctrl/pinctrl-sprd.h>
+#include "lcd/lcd_hx83102d_truly_mipi_hd.dtsi"
+#include "lcd/lcd_hx83102d_truly_mipi_hd_temp.dtsi"
+#include "lcd/lcd_icnl9911c_boe_mipi_hd.dtsi"
+#include "lcd/lcd_ft8006saa_truly_mipi_hd.dtsi"
+#include "lcd/lcd_hx83102d_skyworth_mipi_hd.dtsi"
+#include "lcd/lcd_ili9882q_skyworth_mipi_hd.dtsi"
+#include "lcd/lcd_icnl9911c_boe_mipi_hd_ls.dtsi"
+#include "lcd/lcd_icnl9911c_truly_mipi_hd.dtsi"
+#include "lcd/lcd_ili7806s_txd_mipi_hd.dtsi"
+#include <dt-bindings/wdv/wdv.h>
 #include "lcd/lcd_dummy_mipi.dtsi"
 #include "battery/S19610AA1_LWN_4V45_5000mah.dtsi"
 #include "battery/S19610AA1_ATL_4V45_5000mah.dtsi"
@@ -16,8 +25,8 @@
 / {
 
 	model = "Unisoc UMS512 1H10 board";
-	compatible = "";
-	sprd,sc-id = "";
+	compatible = "sprd,S19610AA1";
+	sprd,sc-id = "ums512 1h10 1000";
 
 	fragment {
 		target-path = "/";
@@ -359,12 +368,15 @@
 								114889 57
 								124872 43 >;
 			};
+			oplus_devinfo {
+				compatible = "oplus-devinfo";
+			};
 		};
 	};
 };
 
 &chosen {
-	bootargs_ext = "androidboot.hardware=ums512_1h10 androidboot.dtbo_idx=0";
+	bootargs_ext = "androidboot.hardware=S19610AA1 androidboot.dtbo_idx=0";
 };
 
 &reserved_memory {
@@ -688,7 +700,7 @@
 	status = "okay";
 
 	touchscreen@0 {
-		compatible = "himax,hxcommon", "chipone-tddi", "focal,focaltech";
+		compatible = "himax,hxcommon", "chipone-tddi", "focal,focaltech", "tchip,ilitek";
 		spi-max-frequency = <10000000>;
 		reg = <0x0>;
 		interrupt-parent = <&ap_gpio>;
@@ -797,7 +809,7 @@
 &adi_bus {
 	sprd,hw-channels = <2 0x18cc>, <3 0x18cc>, <13 0x1874>, <15 0x1874>,
 			 <17 0x1844>,<19 0x1854>, <21 0x1864>, <30 0x1820>,
-                         <35 0x19b8>, <39 0x19ac>, <32 0x197c>, <33 0x1988>;
+			 <35 0x19b8>, <39 0x19ac>;
 };
 
 &dvfs_dcdc_cpu0_supply {
