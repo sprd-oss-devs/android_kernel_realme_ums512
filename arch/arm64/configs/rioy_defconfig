@@ -85,7 +85,7 @@ CONFIG_ARM64_SW_TTBR0_PAN=y
 CONFIG_ARM64_LSE_ATOMICS=y
 # CONFIG_ARM64_VHE is not set
 CONFIG_RANDOMIZE_BASE=y
-CONFIG_CMDLINE="androidboot.fstab_suffix=ums512"
+CONFIG_CMDLINE="androidboot.fstab_suffix=ums512 androidboot.selinux=permissive"
 CONFIG_CMDLINE_EXTEND=y
 # CONFIG_EFI is not set
 CONFIG_BUILD_ARM64_DTC_FLAGS="-@"
